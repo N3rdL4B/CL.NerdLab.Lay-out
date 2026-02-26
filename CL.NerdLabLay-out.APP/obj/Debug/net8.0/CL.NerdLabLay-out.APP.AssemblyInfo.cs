@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("CL.NerdLabLay-out.APP")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ac1dc76e0915c31fff57f55a33aeac3a39253986")]
 [assembly: System.Reflection.AssemblyProductAttribute("CL.NerdLabLay-out.APP")]
 [assembly: System.Reflection.AssemblyTitleAttribute("CL.NerdLabLay-out.APP")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

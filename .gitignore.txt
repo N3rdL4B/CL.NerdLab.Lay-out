@@ -24,3 +24,17 @@ wwwroot/lib/
 
 # RARs
 *.rar
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build
+bin/
+obj/
+
+# Rider / VSCode opcional
+.idea/
+.vscode/
