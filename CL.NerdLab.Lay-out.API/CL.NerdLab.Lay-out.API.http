@@ -1,0 +1,6 @@
+@CL.NerdLab.Lay_out.API_HostAddress = http://localhost:5018
+
+GET {{CL.NerdLab.Lay_out.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

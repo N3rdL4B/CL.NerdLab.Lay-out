@@ -1,0 +1,261 @@
+﻿@using Microsoft.AspNetCore.Http
+@inject IHttpContextAccessor HttpContextAccessor
+@{
+    var rolLogueado = HttpContextAccessor.HttpContext.Session.GetString("UserRole")?.ToLower() ?? "";
+    var nombreLogueado = HttpContextAccessor.HttpContext.Session.GetString("UserName") ?? "Usuario";
+    var rutLogueado = HttpContextAccessor.HttpContext.Session.GetString("UserRut") ?? ""; // <--- ¡NUEVO!
+}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lay-out Patios - Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --redbus-red: #E3000F;
+            --redbus-dark: #b3000b;
+            --bg-color: #f8f9fa;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow-x: hidden;
+        }
+
+        .view-section {
+            display: none;
+        }
+
+            .view-section.active {
+                display: block;
+                animation: fadeIn 0.4s;
+            }
+
+        @@keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        #sidebar {
+            position: fixed;
+            top: 0;
+            left: -300px;
+            width: 280px;
+            height: 100vh;
+            background-color: #ffffff;
+            box-shadow: 5px 0 15px rgba(0,0,0,0.1);
+            z-index: 1050;
+            transition: left 0.3s ease;
+            padding-top: 20px;
+        }
+
+            #sidebar.open {
+                left: 0;
+            }
+
+        .sidebar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px 20px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .sidebar-menu {
+            list-style: none;
+            padding: 0;
+            margin-top: 20px;
+        }
+
+            .sidebar-menu li a {
+                display: block;
+                padding: 15px 20px;
+                color: #333;
+                text-decoration: none;
+                font-weight: 500;
+                transition: 0.2s;
+            }
+
+                .sidebar-menu li a:hover, .sidebar-menu li a.active {
+                    background-color: var(--redbus-red);
+                    color: white;
+                }
+
+        .top-navbar {
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            border-bottom: 3px solid var(--redbus-red);
+        }
+
+        .menu-toggle {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: var(--redbus-red);
+            cursor: pointer;
+        }
+
+        .badge-estado {
+            font-size: 0.85rem;
+            padding: 8px 12px;
+            border-radius: 20px;
+            color: white;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-weight: 500;
+        }
+
+        .estado-disponible {
+            background-color: #28a745;
+        }
+
+        .estado-carga {
+            background-color: #ffc107;
+            color: #000;
+        }
+
+        .estado-nodisponible {
+            background-color: #dc3545;
+        }
+
+        .estado-enuso {
+            background-color: #0d6efd;
+        }
+
+        .estado-sindoc {
+            background-color: #fd7e14;
+        }
+
+        .custom-table-container {
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .custom-table th {
+            background-color: #f8f9fa;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+            color: #6c757d;
+            white-space: nowrap;
+        }
+
+        .custom-table td.actions-col {
+            white-space: nowrap;
+        }
+
+        .app-content {
+            padding: 30px;
+            background: rgba(255,255,255,0.85);
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+
+        .btn-redbus {
+            background-color: var(--redbus-red);
+            color: white;
+        }
+
+            .btn-redbus:hover {
+                background-color: var(--redbus-dark);
+                color: white;
+            }
+
+        .chart-container {
+            height: 350px;
+            width: 100%;
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        .legend-box {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px dashed #ccc;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="view-app" class="view-section active">
+        <aside id="sidebar">
+            <div class="sidebar-header">
+                <h4 class="m-0" style="color: var(--redbus-red);"><i class="fa-solid fa-bus"></i> Menú</h4>
+                <button class="btn btn-sm btn-light" onclick="app.toggleMenu()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <ul class="sidebar-menu">
+                <li><a href="#" onclick="app.navigate('dashboard')" id="nav-dashboard"><i class="fa-solid fa-chart-pie me-2"></i> Dashboard</a></li>
+                <li><a href="#" onclick="app.navigate('flota')" id="nav-flota"><i class="fa-solid fa-list-check me-2"></i> Control Flota</a></li>
+
+                @* OCULTAMOS EL MENÚ DESDE EL SERVIDOR SI NO ES ADMIN *@
+                @if (rolLogueado == "admin")
+                {
+                    <li id="menu-usuarios"><a href="#" onclick="app.navigate('usuarios')" id="nav-usuarios"><i class="fa-solid fa-users me-2"></i> Usuarios</a></li>
+                }
+
+                <li><a href="/Login/Login" class="text-danger mt-5"><i class="fa-solid fa-power-off me-2"></i> Salir</a></li>
+            </ul>
+        </aside>
+
+        <div class="top-navbar">
+            <button class="menu-toggle me-3" onclick="app.toggleMenu()"><i class="fa-solid fa-bars"></i></button>
+            <h5 class="m-0 text-dark fw-bold d-flex align-items-center">
+                <span id="txt-nombre-patio">Patio Central</span>
+
+                @if (rolLogueado == "admin")
+                {
+                    <button id="btn-edit-patio" class="btn btn-sm btn-link text-muted" onclick="app.editarPatio()"><i class="fa-solid fa-pen"></i></button>
+                }
+
+                <span class="badge bg-secondary ms-3" style="font-size: 0.7rem;"><i class="fa-solid fa-user me-1"></i> @nombreLogueado (@rolLogueado.ToUpper())</span>
+            </h5>
+        </div>
+
+        <div class="container-fluid">
+            @RenderBody()
+        </div>
+    </div>
+
+    <script>
+        window.SERVER_DATA = {
+            rol: '@rolLogueado',
+            nombre: '@nombreLogueado',
+            rut: '@rutLogueado' // <--- ¡NUEVO!
+        };
+    </script>
+
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

@@ -1,0 +1,568 @@
+﻿@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Gestión Flota";
+}
+@using Microsoft.AspNetCore.Http
+@inject IHttpContextAccessor HttpContextAccessor
+@{
+    var rolLogueado = HttpContextAccessor.HttpContext.Session.GetString("UserRole")?.ToLower() ?? "";
+}
+
+<style>
+    .patente-cl {
+        display: inline-block;
+        background: #fff;
+        border: 2px solid #333;
+        border-radius: 4px;
+        color: #111;
+        font-family: 'Arial Black', Impact, sans-serif;
+        font-weight: 900;
+        font-size: 1.1rem;
+        padding: 2px 8px;
+        position: relative;
+        box-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        line-height: 1.1;
+    }
+
+        .patente-cl::before {
+            content: 'CHILE';
+            display: block;
+            font-size: 0.4rem;
+            text-align: center;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 2px;
+            letter-spacing: 0;
+        }
+
+    .text-nowrap {
+        white-space: nowrap !important;
+    }
+</style>
+
+<div id="content-dashboard" class="view-section app-content active">
+    <h3 class="mb-4"><i class="fa-solid fa-chart-line text-danger"></i> Resumen de Flota</h3>
+    <div class="row">
+        <div class="col-md-6 mb-3"><div id="chart-pie" class="chart-container"></div></div>
+        <div class="col-md-6 mb-3"><div id="chart-bar" class="chart-container"></div></div>
+    </div>
+</div>
+
+<div id="content-flota" class="view-section app-content">
+    <h3 class="mb-4"><i class="fa-solid fa-list-check text-danger"></i> Registro de Buses</h3>
+
+    <div class="legend-box">
+        <span class="text-muted fw-bold me-2"><i class="fa-solid fa-circle-info"></i> Leyenda:</span>
+        <span class="badge-estado estado-disponible"><i class="fa-solid fa-circle-check"></i> Disponible</span>
+        <span class="badge-estado estado-carga"><i class="fa-solid fa-bolt"></i> Carga</span>
+        <span class="badge-estado estado-nodisponible"><i class="fa-solid fa-screwdriver-wrench"></i> No disponible</span>
+        <span class="badge-estado estado-enuso"><i class="fa-solid fa-route"></i> En ruta</span>
+    </div>
+
+    <ul class="nav nav-tabs mb-4" id="flotaTabs" role="tablist">
+        <li class="nav-item" role="presentation"><button class="nav-link active fw-bold text-dark" id="actual-tab" data-bs-toggle="tab" data-bs-target="#tab-actual" type="button" role="tab"><i class="fa-solid fa-bus"></i> Estado Actual</button></li>
+        @if (rolLogueado == "admin" || rolLogueado == "visualizador")
+        {
+            <li class="nav-item" role="presentation"><button class="nav-link fw-bold text-dark" id="historial-tab" data-bs-toggle="tab" data-bs-target="#tab-historial" type="button" role="tab" onclick="app.cargarHistorial('Hoy')"><i class="fa-solid fa-clock-rotate-left"></i> Historial Global</button></li>
+        }
+    </ul>
+
+    <div class="tab-content" id="flotaTabsContent">
+        <div class="tab-pane fade show active" id="tab-actual" role="tabpanel">
+            @if (rolLogueado == "ingresador" || rolLogueado == "admin")
+            {
+                <div class="row align-items-end mb-4 bg-white p-3 rounded shadow-sm border-start border-danger border-4" id="box-ingreso-patente">
+                    <div class="col-md-8">
+                        <label class="form-label text-muted fw-bold">Ingresar Patente (Buscador Global)</label>
+                        <select class="form-select select2-patentes" id="input-patente" style="width: 100%;"></select>
+                    </div>
+                    <div class="col-md-4">
+                        <button class="btn btn-redbus w-100 mt-3 mt-md-0 fw-bold shadow-sm" onclick="app.openModalFromInput()"><i class="fa-solid fa-bolt"></i> Accionar / Agregar Bus</button>
+                    </div>
+                </div>
+            }
+
+            <div class="bg-white p-3 rounded shadow-sm">
+                <div class="table-responsive">
+                    <table id="tabla-flota" class="table table-hover align-middle w-100 custom-table">
+                        <thead class="table-light">
+                            <tr><th class="text-nowrap">Bus</th><th class="text-nowrap">Patente</th><th class="text-nowrap">Estado Actual</th><th class="text-nowrap">Carga %</th><th class="text-nowrap">Acciones Rápidas</th></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        @if (rolLogueado == "admin" || rolLogueado == "visualizador")
+        {
+            <div class="tab-pane fade" id="tab-historial" role="tabpanel">
+                <div class="bg-white p-3 rounded shadow-sm mb-4">
+                    <div class="row align-items-end">
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label small fw-bold">Periodo:</label>
+                            <select id="filtro-historial-tipo" class="form-select border-info" onchange="app.toggleRangoFechas()">
+                                <option value="Hoy">Hoy (00:00 - 23:59)</option>
+                                <option value="Reciente">Últimos 2 Días</option>
+                                <option value="Rango">Rango de Fechas</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-2 div-rango-fechas" style="display:none;"><label class="form-label small">Desde:</label><input type="date" id="filtro-fecha-inicio" class="form-control"></div>
+                        <div class="col-md-3 mb-2 div-rango-fechas" style="display:none;"><label class="form-label small">Hasta:</label><input type="date" id="filtro-fecha-fin" class="form-control"></div>
+                        <div class="col-md-3 mb-2"><button class="btn btn-dark w-100" onclick="app.aplicarFiltroHistorial()"><i class="fa-solid fa-filter"></i> Filtrar Data</button></div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-3 rounded shadow-sm">
+                    <div class="table-responsive">
+                        <table id="tabla-historial-global" class="table table-hover align-middle w-100 custom-table">
+                            <thead class="table-light">
+                                <tr><th class="text-nowrap">Fecha/Hora</th><th class="text-nowrap">Patente</th><th class="text-nowrap">% Carga</th><th class="text-nowrap">Usuario Registrador</th></tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@if (rolLogueado == "admin")
+{
+    <div id="content-usuarios" class="view-section app-content">
+        <h3 class="mb-4"><i class="fa-solid fa-users text-danger"></i> Gestión de Usuarios</h3>
+        <div class="bg-white p-3 rounded shadow-sm mb-4 text-end">
+            <button class="btn btn-redbus" onclick="app.modalNuevoUsuario()"><i class="fa-solid fa-user-plus"></i> Agregar Nuevo Usuario</button>
+        </div>
+        <div class="custom-table-container bg-white p-3 rounded shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle custom-table mb-0 w-100">
+                    <thead><tr><th class="text-nowrap">Nombre</th><th class="text-nowrap">RUT</th><th class="text-nowrap">Email</th><th class="text-nowrap">Rol</th><th class="text-nowrap">Estado</th><th class="text-nowrap">Acciones</th></tr></thead>
+                    <tbody id="tabla-usuarios-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+@Html.AntiForgeryToken()
+
+<div class="modal fade" id="modalEstado" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content border-top border-danger border-4">
+            <div class="modal-header">
+                <h5 class="modal-title d-flex align-items-center">Patente: <span id="modal-patente" class="patente-cl ms-3"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Modificar Estado</label>
+                    <select id="modal-select-estado" class="form-select form-select-lg shadow-sm" onchange="app.checkCargaInput()">
+                    </select>
+                </div>
+                <div class="mb-3" id="div-carga-porcentaje" style="display: none;">
+                    <label class="form-label fw-bold text-warning">Porcentaje de Batería (%) <i class="fa-solid fa-bolt"></i></label>
+                    <input type="number" id="modal-input-carga" class="form-control form-control-lg border-warning shadow-sm" min="0" max="100" placeholder="Ej: 80">
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-redbus px-4" onclick="app.saveEstado()">Registrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalHistorialBus" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content border-top border-info border-4">
+            <div class="modal-header">
+                <h5 class="modal-title d-flex align-items-center"><i class="fa-solid fa-clock-rotate-left me-2 text-info"></i> Historial de: <span id="historial-bus-patente" class="patente-cl ms-3"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-striped align-middle table-sm w-100">
+                        <thead class="table-light"><tr><th class="text-nowrap">Fecha/Hora</th><th class="text-nowrap">Registrador</th><th class="text-nowrap">% Carga</th></tr></thead>
+                        <tbody id="tabla-historial-bus-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (rolLogueado == "admin")
+{
+    <div class="modal fade" id="modalUsuario" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content border-top border-dark border-4">
+                <div class="modal-header"><h5 class="modal-title">Nuevo Usuario</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <div class="mb-3"><label class="form-label">Nombre Completo</label><input type="text" id="u-nombre" class="form-control"></div>
+                    <div class="mb-3"><label class="form-label">RUT</label><input type="text" id="u-rut" class="form-control" placeholder="12345678-9"></div>
+                    <div class="mb-3"><label class="form-label">Email</label><input type="email" id="u-email" class="form-control"></div>
+                    <div class="mb-3"><label class="form-label">Rol</label><select id="u-rol" class="form-select"></select></div>
+                    <div class="alert alert-warning py-2 mb-0"><small><i class="fa-solid fa-triangle-exclamation"></i> Clave temporal será <b>1234</b>.</small></div>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-dark w-100" onclick="app.guardarUsuario()">Crear Usuario</button></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalEditarUsuario" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content border-top border-secondary border-4">
+                <div class="modal-header"><h5 class="modal-title"><i class="fa-solid fa-user-pen me-2"></i>Editar Usuario</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <input type="hidden" id="edit-u-id">
+                    <div class="mb-3"><label class="form-label">Nombre Completo</label><input type="text" id="edit-u-nombre" class="form-control"></div>
+                    <div class="mb-3"><label class="form-label">RUT</label><input type="text" id="edit-u-rut" class="form-control" placeholder="12345678-9"></div>
+                    <div class="mb-3"><label class="form-label">Email</label><input type="email" id="edit-u-email" class="form-control"></div>
+                    <div class="mb-3"><label class="form-label">Rol</label><select id="edit-u-rol" class="form-select"></select></div>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-secondary w-100" onclick="app.guardarEdicionUsuario()">Guardar Cambios</button></div>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script>
+        var app = {
+            role: window.SERVER_DATA.rol,
+            rut: window.SERVER_DATA.rut,
+            buses: [],
+            patentesGlobales: [], // Lista completa para el Select2
+            dtActual: null,
+            dtHistorial: null,
+
+            iconos: { 'Disponible': '<i class="fa-solid fa-circle-check"></i>', 'Carga': '<i class="fa-solid fa-bolt"></i>', 'No disponible': '<i class="fa-solid fa-screwdriver-wrench"></i>', 'En ruta': '<i class="fa-solid fa-route"></i>' },
+
+            getBusIcon: function(estado) {
+                const colors = { 'Disponible': 'text-success', 'Carga': 'text-warning', 'No disponible': 'text-danger', 'En ruta': 'text-primary' };
+                return `<i class="fa-solid fa-bus fa-2x ${colors[estado] || 'text-secondary'}"></i>`;
+            },
+
+            init: function() {
+                this.cargarPatentesGlobales(); // Carga el select2 con TODO el universo
+                this.cargarFlotaDesdeAPI();
+                if(this.role === 'admin') { this.cargarRoles(); this.cargarUsuarios(); }
+
+                setInterval(() => { this.cargarFlotaDesdeAPI(); }, 300000);
+            },
+
+            // --- CARGAS Y TABLA ACTUAL ---
+            cargarPatentesGlobales: function() {
+                fetch('?handler=Patentes').then(r => r.json()).then(data => {
+                    this.patentesGlobales = Array.isArray(data) ? data : [];
+                    if($('#input-patente').length) this.setupSelect2();
+                });
+            },
+
+            cargarFlotaDesdeAPI: function() {
+                fetch('?handler=Flota').then(r => r.json()).then(data => {
+                    this.buses = Array.isArray(data) ? data : [];
+                    this.setupDataTableActual();
+                    this.renderCharts();
+                });
+            },
+
+            setupSelect2: function() {
+                const $select = $('#input-patente');
+                if ($select.hasClass("select2-hidden-accessible")) { $select.select2('destroy'); }
+                $select.empty();
+                $select.append(new Option('', '', true, true));
+
+                // Llenamos con TODA la flota existente
+                $select.select2({ tags: true, placeholder: "Ejemplo: SFWB76", allowClear: true, data: this.patentesGlobales.map(p => ({id: p, text: p})), width: '100%' });
+            },
+
+            setupDataTableActual: function() {
+                let tableData = Array.isArray(this.buses) ? this.buses : [];
+                if(this.dtActual) {
+                    this.dtActual.clear(); this.dtActual.rows.add(tableData); this.dtActual.draw(false);
+                } else {
+                    this.dtActual = $('#tabla-flota').DataTable({
+                        data: tableData,
+                        columns: [
+                            { data: 'estado', render: (data) => `<div class="text-center">${this.getBusIcon(data)}</div>`, width: '60px' },
+                            { data: 'patente', render: data => `<span class="patente-cl">${data}</span>` },
+                            { data: 'estado', render: data => this.renderBadge(data) },
+                            { data: 'porcentaje', render: data => data ? `<span class="badge bg-warning text-dark fs-6 shadow-sm">${data}% <i class="fa-solid fa-bolt"></i></span>` : '-' },
+                            { data: null, render: data => this.renderActionButtons(data), className: 'text-nowrap' } // text-nowrap para responsive
+                        ],
+                        language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' }, pageLength: 10, order: [[2, 'asc']]
+                    });
+                }
+            },
+
+            renderBadge: function(estado) {
+                const classes = { 'Disponible': 'estado-disponible', 'Carga': 'estado-carga', 'No disponible': 'estado-nodisponible', 'En ruta': 'estado-enuso' };
+                return `<span class="badge-estado ${classes[estado] || 'bg-secondary'}">${this.iconos[estado]||''} ${estado}</span>`;
+            },
+
+                   renderActionButtons: function(bus) {
+            let btns = `<div class="d-flex gap-2 flex-wrap align-items-center">`;
+
+            const historialBtn = (patente) =>
+                `<button class="btn btn-sm btn-info text-white shadow-sm"
+                    title="Historial Carga"
+                    onclick="app.verHistorialBus('${patente}')">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                </button>`;
+
+            if (this.role === 'visualizador') {
+                if (bus.estado === 'Disponible') {
+                    btns += `<button class="btn btn-sm btn-primary" onclick="app.directUpdate('${bus.patente}', 'En ruta')">
+                                <i class="fa-solid fa-route"></i>
+                            </button>`;
+                    btns += `<button class="btn btn-sm btn-danger" onclick="app.directUpdate('${bus.patente}', 'No disponible')">
+                                <i class="fa-solid fa-ban"></i> 
+                            </button>`;
+                    btns += historialBtn(bus.patente);
+                } else if (bus.estado === 'No disponible' || bus.estado === 'En ruta') {
+                    btns += `<button class="btn btn-sm btn-success" onclick="app.directUpdate('${bus.patente}', 'Disponible')">
+                                <i class="fa-solid fa-check"></i> 
+                            </button>`;
+                    btns += historialBtn(bus.patente);
+                } else {
+                    btns += `<span class="text-muted small fst-italic">En Carga (Solo Ingresador)</span>`;
+                }
+            }
+
+            else if (this.role === 'ingresador') {
+                if (bus.estado === 'Disponible') {
+                    btns += `<button class="btn btn-sm btn-warning text-dark fw-bold shadow-sm" onclick="app.openModal('${bus.patente}', 'Carga')">
+                                <i class="fa-solid fa-plug"></i> 
+                            </button>`;
+                    btns += `<button class="btn btn-sm btn-danger shadow-sm" onclick="app.directUpdate('${bus.patente}', 'No disponible')">
+                                <i class="fa-solid fa-ban"></i> 
+                            </button>`;
+                    btns += historialBtn(bus.patente);
+                }
+                else if (bus.estado === 'Carga') {
+                    btns += `<button class="btn btn-sm btn-outline-warning text-dark fw-bold" onclick="app.openModal('${bus.patente}', 'Carga')">
+                                <i class="fa-solid fa-battery-half"></i> 
+                            </button>`;
+                    btns += `<button class="btn btn-sm btn-success shadow-sm" onclick="app.directUpdate('${bus.patente}', 'Disponible')">
+                                <i class="fa-solid fa-check"></i> 
+                            </button>`;
+                    btns += `<button class="btn btn-sm btn-danger shadow-sm" onclick="app.directUpdate('${bus.patente}', 'No disponible')">
+                                <i class="fa-solid fa-ban"></i> 
+                            </button>`;
+                    btns += historialBtn(bus.patente);
+                }
+                else if (bus.estado === 'No disponible') {
+                    btns += `<button class="btn btn-sm btn-success shadow-sm" onclick="app.directUpdate('${bus.patente}', 'Disponible')">
+                                <i class="fa-solid fa-check"></i> 
+                            </button>`;
+                    btns += historialBtn(bus.patente);
+                }
+                else {
+                    btns += `<span class="text-muted small fst-italic">En Ruta (Solo Visualizador)</span>`;
+                }
+            }
+
+            else if (this.role === 'admin') {
+                btns += `<button class="btn btn-sm btn-dark" onclick="app.openModal('${bus.patente}', '${bus.estado}')">
+                            <i class="fa-solid fa-gear"></i> Forzar Estado
+                        </button>`;
+                btns += historialBtn(bus.patente);
+            }
+
+            btns += `</div>`;
+            return btns;
+        },
+
+            // --- HISTORIAL INDIVIDUAL ---
+            verHistorialBus: function(patente) {
+                document.getElementById('historial-bus-patente').innerText = patente;
+                document.getElementById('tabla-historial-bus-body').innerHTML = '<tr><td colspan="3" class="text-center"><i class="fa-solid fa-spinner fa-spin"></i> Cargando...</td></tr>';
+                new bootstrap.Modal(document.getElementById('modalHistorialBus')).show();
+
+                fetch(`?handler=HistorialBus&patente=${patente}`).then(r => r.json()).then(data => {
+                    let html = '';
+                    if(!Array.isArray(data) || data.length === 0) html = '<tr><td colspan="3" class="text-center text-muted">Sin historial de carga inmutable</td></tr>';
+                    else {
+                        data.forEach(d => { html += `<tr><td>${new Date(d.fecha).toLocaleString('es-CL')}</td><td><strong>${d.usuario}</strong></td><td><span class="badge bg-warning text-dark">${d.porcentaje}% <i class="fa-solid fa-bolt"></i></span></td></tr>`; });
+                    }
+                    document.getElementById('tabla-historial-bus-body').innerHTML = html;
+                });
+            },
+
+            // --- ACTUALIZACIONES Y MODAL INTELIGENTE ---
+            openModalFromInput: function() {
+                let patente = $('#input-patente').val();
+                if(!patente) return Swal.fire('Atención', 'Debe escribir o seleccionar una patente.', 'warning');
+                patente = patente.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                let bus = Array.isArray(this.buses) ? this.buses.find(b => b.patente === patente) : null;
+                document.getElementById('modal-input-carga').value = '';
+                this.openModal(patente, bus ? bus.estado : 'Disponible');
+            },
+
+            openModal: function(patente, estadoActual) {
+                document.getElementById('modal-patente').innerText = patente;
+
+                // LÓGICA DINÁMICA DEL SELECT (Sin colores, filtrado por rol)
+                let sel = document.getElementById('modal-select-estado');
+                let html = '<option value="Disponible">Disponible</option>';
+                if(this.role === 'ingresador' || this.role === 'admin') html += '<option value="Carga">Carga</option>';
+                html += '<option value="No disponible">No disponible</option>';
+                if(this.role === 'visualizador' || this.role === 'admin') html += '<option value="En ruta">En ruta</option>';
+                sel.innerHTML = html;
+
+                // Setear valor y limpiar input de carga si existe
+                sel.value = estadoActual;
+                let bus = Array.isArray(this.buses) ? this.buses.find(b => b.patente === patente) : null;
+                document.getElementById('modal-input-carga').value = bus?.porcentaje || '';
+
+                this.checkCargaInput();
+                new bootstrap.Modal(document.getElementById('modalEstado')).show();
+            },
+
+            checkCargaInput: function() {
+                const e = document.getElementById('modal-select-estado').value;
+                document.getElementById('div-carga-porcentaje').style.display = (e === 'Carga') ? 'block' : 'none';
+            },
+
+            saveEstado: function() {
+                const patente = document.getElementById('modal-patente').innerText;
+                const estado = document.getElementById('modal-select-estado').value;
+                let porcentaje = (estado === 'Carga') ? document.getElementById('modal-input-carga').value : null;
+                if (estado === 'Carga' && !porcentaje) return Swal.fire('Error', 'Ingrese porcentaje', 'error');
+
+                let m = bootstrap.Modal.getInstance(document.getElementById('modalEstado'));
+                if(m) m.hide();
+                this.directUpdate(patente, estado, porcentaje);
+            },
+
+            directUpdate: function(patente, estado, porcentaje = null) {
+                Swal.fire({ title: 'Actualizando flota...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+                fetch('?handler=CambiarEstado', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value },
+                    body: JSON.stringify({ Patente: patente, Estado: estado, Porcentaje: parseInt(porcentaje) || null, RutUsuario: this.rut })
+                }).then(r => r.json()).then(data => {
+                    if(data.success) {
+                        Swal.fire({icon: 'success', title: '¡Guardado!', showConfirmButton: false, timer: 1000});
+                        this.cargarFlotaDesdeAPI();
+
+                        // Si era patente nueva, la inyectamos silenciosamente al select global
+                        if(!this.patentesGlobales.includes(patente)) {
+                            this.patentesGlobales.push(patente);
+                            let newOption = new Option(patente, patente, false, false);
+                            $('#input-patente').append(newOption).trigger('change');
+                        }
+                    } else { Swal.fire('Error', data.message, 'error'); }
+                }).catch(() => Swal.fire('Error', 'Falla de conexión.', 'error'));
+            },
+
+            // --- HISTORIAL GLOBAL ---
+            toggleRangoFechas: function() { const t = document.getElementById('filtro-historial-tipo').value; document.querySelectorAll('.div-rango-fechas').forEach(el => el.style.display = (t === 'Rango') ? 'block' : 'none'); },
+            aplicarFiltroHistorial: function() {
+                const t = document.getElementById('filtro-historial-tipo').value; const i = document.getElementById('filtro-fecha-inicio').value; const f = document.getElementById('filtro-fecha-fin').value;
+                if(t === 'Rango' && (!i || !f)) return Swal.fire('Ojo', 'Seleccione ambas fechas', 'warning');
+                this.cargarHistorial(t, i, f);
+            },
+            cargarHistorial: function(filtro, inicio = '', fin = '') {
+                Swal.fire({ title: 'Cargando historial...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+                let url = `?handler=HistorialGlobal&filtro=${filtro}`; if(filtro === 'Rango') url += `&inicio=${inicio}&fin=${fin}`;
+                fetch(url).then(r => r.json()).then(data => {
+                    Swal.close(); let histData = Array.isArray(data) ? data : [];
+                    if(this.dtHistorial) { this.dtHistorial.clear(); this.dtHistorial.rows.add(histData); this.dtHistorial.draw(false); }
+                    else {
+                        this.dtHistorial = $('#tabla-historial-global').DataTable({ data: histData, columns: [ { data: 'fecha', render: d => new Date(d).toLocaleString('es-CL'), className: 'text-nowrap' }, { data: 'patente', render: d => `<span class="patente-cl" style="font-size:0.8rem;">${d}</span>` }, { data: 'porcentaje', render: d => d ? `<span class="badge bg-warning text-dark shadow-sm">${d}% <i class="fa-solid fa-bolt"></i></span>` : '-' }, { data: 'usuario', render: d => `<strong>${d}</strong>` } ], language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' }, order: [[0, 'desc']] });
+                    }
+                }).catch(() => Swal.fire('Error', 'No se pudo cargar el historial', 'error'));
+            },
+
+            // --- NAVEGACIÓN Y USUARIOS ---
+            toggleMenu: function(force) { const s = document.getElementById('sidebar'); if (force === false) s.classList.remove('open'); else s.classList.toggle('open'); },
+            navigate: function(v) { document.querySelectorAll('#view-app .view-section').forEach(el => el.classList.remove('active')); document.querySelectorAll('.sidebar-menu a').forEach(el => el.classList.remove('active')); document.getElementById('content-' + v).classList.add('active'); document.getElementById('nav-' + v).classList.add('active'); this.toggleMenu(false); if(v === 'dashboard') setTimeout(() => this.renderCharts(), 100); },
+
+            cargarRoles: function() { fetch('?handler=Roles').then(r => r.json()).then(roles => {
+                let options = Array.isArray(roles) ? roles.map(r => `<option value="${r.idRol}">${r.nombre}</option>`).join('') : '';
+                document.getElementById('u-rol').innerHTML = options;
+                if(document.getElementById('edit-u-rol')) document.getElementById('edit-u-rol').innerHTML = options; // Carga roles también en el modal de edición
+            }); },
+
+            cargarUsuarios: function() {
+                fetch('?handler=Usuarios').then(r => r.json()).then(data => {
+                    let html = '';
+                    if(Array.isArray(data)){
+                        data.forEach(u => {
+                            let badge = u.activo ? `<span class="badge bg-success">Activo</span>` : `<span class="badge bg-danger">Inactivo</span>`;
+                            html += `<tr><td class="text-nowrap"><strong>${u.nombreCompleto}</strong></td><td class="text-nowrap">${u.rut}</td><td>${u.email}</td><td><span class="badge bg-dark">${u.rol}</span></td><td>${badge}</td>
+                            <td class="actions-col text-nowrap">
+                                <button class="btn btn-sm btn-outline-primary me-1" title="Editar" onclick="app.modalEditarUsuario(${u.idUsuario}, '${u.nombreCompleto}', '${u.rut}', '${u.email}', ${u.idRol})"><i class="fa-solid fa-pen"></i></button>
+                                <button class="btn btn-sm btn-outline-dark me-1" title="Reset Clave" onclick="app.resetPassword(${u.idUsuario})"><i class="fa-solid fa-key"></i></button>
+                                <button class="btn btn-sm ${u.activo ? 'btn-outline-danger' : 'btn-outline-success'}" title="${u.activo ? 'Desactivar' : 'Activar'}" onclick="app.toggleUsuario(${u.idUsuario})"><i class="fa-solid ${u.activo ? 'fa-user-slash' : 'fa-user-check'}"></i></button>
+                            </td></tr>`;
+                        });
+                    }
+                    document.getElementById('tabla-usuarios-body').innerHTML = html;
+                });
+            },
+            modalNuevoUsuario: function() { document.getElementById('u-nombre').value = ''; document.getElementById('u-rut').value = ''; document.getElementById('u-email').value = ''; new bootstrap.Modal(document.getElementById('modalUsuario')).show(); },
+            guardarUsuario: function() {
+                let obj = { NombreCompleto: document.getElementById('u-nombre').value, Rut: document.getElementById('u-rut').value, Email: document.getElementById('u-email').value, IdRol: parseInt(document.getElementById('u-rol').value) };
+                if(!obj.NombreCompleto || !obj.Rut) return Swal.fire('Error', 'Faltan datos', 'error');
+                fetch('?handler=CrearUsuario', { method: 'POST', headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value }, body: JSON.stringify(obj) })
+                .then(r => r.json()).then(data => { if(data.success){ bootstrap.Modal.getInstance(document.getElementById('modalUsuario')).hide(); Swal.fire('Éxito', 'Creado. Clave: 1234', 'success'); this.cargarUsuarios(); } else Swal.fire('Error', data.message, 'error'); });
+            },
+
+            // EDICIÓN DE USUARIOS
+            modalEditarUsuario: function(id, nombre, rut, email, idRol) {
+                document.getElementById('edit-u-id').value = id;
+                document.getElementById('edit-u-nombre').value = nombre;
+                document.getElementById('edit-u-rut').value = rut;
+                document.getElementById('edit-u-email').value = email;
+                document.getElementById('edit-u-rol').value = idRol;
+                new bootstrap.Modal(document.getElementById('modalEditarUsuario')).show();
+            },
+            guardarEdicionUsuario: function() {
+                let obj = {
+                    IdUsuario: parseInt(document.getElementById('edit-u-id').value),
+                    NombreCompleto: document.getElementById('edit-u-nombre').value,
+                    Rut: document.getElementById('edit-u-rut').value,
+                    Email: document.getElementById('edit-u-email').value,
+                    IdRol: parseInt(document.getElementById('edit-u-rol').value)
+                };
+                if(!obj.NombreCompleto || !obj.Rut) return Swal.fire('Error', 'Faltan datos', 'error');
+                fetch('?handler=EditarUsuario', { method: 'POST', headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value }, body: JSON.stringify(obj) })
+                .then(r => r.json()).then(data => { if(data.success){ bootstrap.Modal.getInstance(document.getElementById('modalEditarUsuario')).hide(); Swal.fire('Éxito', 'Usuario actualizado.', 'success'); this.cargarUsuarios(); } else Swal.fire('Error', 'No se pudo actualizar.', 'error'); });
+            },
+
+            toggleUsuario: function(id) { fetch('?handler=ToggleUsuario', { method: 'POST', headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value }, body: JSON.stringify(id) }).then(r => r.json()).then(() => this.cargarUsuarios()); },
+            resetPassword: function(id) { Swal.fire({title: "¿Resetear a '1234'?", showCancelButton: true, confirmButtonText: "Sí"}).then((result) => { if (result.isConfirmed) { fetch('?handler=ResetPassword', { method: 'POST', headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value }, body: JSON.stringify(id) }).then(() => Swal.fire('Listo', '', 'success')); }}); },
+
+            // --- GRÁFICOS ---
+            renderCharts: function() {
+                const domPie = document.getElementById('chart-pie'); const domBar = document.getElementById('chart-bar');
+                if(!Array.isArray(this.buses) || this.buses.length === 0) {
+                    if(this.pieChart) { this.pieChart.dispose(); this.pieChart = null; }
+                    if(this.barChart) { this.barChart.dispose(); this.barChart = null; }
+                    domPie.innerHTML = '<div class="h-100 d-flex flex-column align-items-center justify-content-center text-muted"><i class="fa-solid fa-bus-slash fa-2x mb-2"></i><span>Flota Vacía</span></div>';
+                    domBar.innerHTML = '<div class="h-100 d-flex flex-column align-items-center justify-content-center text-muted"><i class="fa-solid fa-chart-bar fa-2x mb-2"></i><span>Flota Vacía</span></div>';
+                    return;
+                }
+                if(!this.pieChart) { domPie.innerHTML = ''; domPie.removeAttribute('_echarts_instance_'); this.pieChart = echarts.init(domPie); }
+                if(!this.barChart) { domBar.innerHTML = ''; domBar.removeAttribute('_echarts_instance_'); this.barChart = echarts.init(domBar); }
+
+                const conteo = { 'Disponible': 0, 'Carga': 0, 'No disponible': 0, 'En ruta': 0 };
+                this.buses.forEach(b => { if(conteo[b.estado] !== undefined) conteo[b.estado]++; });
+                const colors = { 'Disponible': '#28a745', 'Carga': '#ffc107', 'No disponible': '#dc3545', 'En ruta': '#0d6efd' };
+
+                this.pieChart.setOption({ tooltip: { trigger: 'item' }, series: [{ type: 'pie', radius: '60%', data: Object.keys(conteo).map(k => ({ value: conteo[k], name: k, itemStyle: { color: colors[k] } })) }] });
+                this.barChart.setOption({ tooltip: {}, xAxis: { type: 'category', data: Object.keys(conteo) }, yAxis: { type: 'value' }, series: [{ type: 'bar', data: Object.keys(conteo).map(k => ({ value: conteo[k], itemStyle: { color: colors[k] } })) }] });
+            }
+        };
+
+        $(document).ready(function() { app.init(); });
+    </script>
+}

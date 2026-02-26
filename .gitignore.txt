@@ -1,0 +1,26 @@
+# Build
+bin/
+obj/
+publish/
+*.exe
+*.dll
+*.pdb
+
+# Rider / VS
+.vs/
+.idea/
+*.user
+*.suo
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IIS publish
+wwwroot/lib/
+
+# RARs
+*.rar
