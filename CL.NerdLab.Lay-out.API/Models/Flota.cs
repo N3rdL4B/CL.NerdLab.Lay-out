@@ -15,7 +15,13 @@ public partial class Flota
 
     public DateTime? FechaReg { get; set; }
 
+    public int? IdTipoVehiculo { get; set; }
+
     public virtual Patios IdPatioNavigation { get; set; } = null!;
+
+    public virtual TipoVehiculo? IdTipoVehiculoNavigation { get; set; }
+
+    public virtual ICollection<PatioSlots> PatioSlots { get; set; } = new List<PatioSlots>();
 
     public virtual ICollection<RegistroActividadBuses> RegistroActividadBuses { get; set; } = new List<RegistroActividadBuses>();
 }

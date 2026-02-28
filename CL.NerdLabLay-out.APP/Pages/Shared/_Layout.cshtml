@@ -211,6 +211,11 @@
                 <li><a href="#" onclick="app.navigate('dashboard')" id="nav-dashboard"><i class="fa-solid fa-chart-pie me-2"></i> Dashboard</a></li>
                 <li><a href="#" onclick="app.navigate('flota')" id="nav-flota"><i class="fa-solid fa-list-check me-2"></i> Control Flota</a></li>
 
+                @if (rolLogueado == "admin" || rolLogueado == "visualizador")
+                {
+                    <li><a href="#" onclick="app.navigate('layout')" id="nav-layout"><i class="fa-solid fa-map-location-dot me-2"></i> Layout de Patio</a></li>
+                }
+
                 @* OCULTAMOS EL MENÚ DESDE EL SERVIDOR SI NO ES ADMIN *@
                 @if (rolLogueado == "admin")
                 {

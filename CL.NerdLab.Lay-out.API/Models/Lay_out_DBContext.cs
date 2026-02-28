@@ -25,11 +25,17 @@ public partial class Lay_out_DBContext : DbContext
 
     public virtual DbSet<LogsActividadUsuarios_Ledger> LogsActividadUsuarios_Ledger { get; set; }
 
+    public virtual DbSet<PatioSlots> PatioSlots { get; set; }
+
+    public virtual DbSet<PatioZonas> PatioZonas { get; set; }
+
     public virtual DbSet<Patios> Patios { get; set; }
 
     public virtual DbSet<RegistroActividadBuses> RegistroActividadBuses { get; set; }
 
     public virtual DbSet<Roles> Roles { get; set; }
+
+    public virtual DbSet<TipoVehiculo> TipoVehiculo { get; set; }
 
     public virtual DbSet<Usuarios> Usuarios { get; set; }
 
@@ -53,6 +59,10 @@ public partial class Lay_out_DBContext : DbContext
                 .HasForeignKey(d => d.IdPatio)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_Flota_Patios");
+
+            entity.HasOne(d => d.IdTipoVehiculoNavigation).WithMany(p => p.Flota)
+                .HasForeignKey(d => d.IdTipoVehiculo)
+                .HasConstraintName("FK_Flota_TipoVehiculo");
         });
 
         modelBuilder.Entity<HistorialRegistroCarga>(entity =>
@@ -106,6 +116,42 @@ public partial class Lay_out_DBContext : DbContext
             entity.Property(e => e.ledger_operation_type_desc).HasMaxLength(6);
         });
 
+        modelBuilder.Entity<PatioSlots>(entity =>
+        {
+            entity.HasKey(e => e.IdSlot).HasName("PK__PatioSlo__AC137DE5120EA22E");
+
+            entity.HasOne(d => d.IdPatenteNavigation).WithMany(p => p.PatioSlots)
+                .HasForeignKey(d => d.IdPatente)
+                .HasConstraintName("FK_Slots_Flota");
+
+            entity.HasOne(d => d.IdZonaNavigation).WithMany(p => p.PatioSlots)
+                .HasForeignKey(d => d.IdZona)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_Slots_Zonas");
+        });
+
+        modelBuilder.Entity<PatioZonas>(entity =>
+        {
+            entity.HasKey(e => e.IdZona).HasName("PK__PatioZon__F631C12D7BC34222");
+
+            entity.Property(e => e.ColorHex)
+                .HasMaxLength(20)
+                .HasDefaultValue("rgba(0,0,0,0.05)");
+            entity.Property(e => e.Columnas).HasDefaultValue(2);
+            entity.Property(e => e.Filas).HasDefaultValue(5);
+            entity.Property(e => e.NombreZona).HasMaxLength(100);
+            entity.Property(e => e.Orientacion)
+                .HasMaxLength(1)
+                .IsUnicode(false)
+                .HasDefaultValue("V")
+                .IsFixedLength();
+
+            entity.HasOne(d => d.IdPatioNavigation).WithMany(p => p.PatioZonas)
+                .HasForeignKey(d => d.IdPatio)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_Zonas_Patios");
+        });
+
         modelBuilder.Entity<Patios>(entity =>
         {
             entity.HasKey(e => e.IdPatio).HasName("PK__Patios__18143B1546F6FFF1");
@@ -120,6 +166,7 @@ public partial class Lay_out_DBContext : DbContext
 
             entity.Property(e => e.EstadoActividadBus).HasMaxLength(50);
             entity.Property(e => e.FechaReg).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.NumeroRecorrido).HasMaxLength(50);
 
             entity.HasOne(d => d.IdPatenteNavigation).WithMany(p => p.RegistroActividadBuses)
                 .HasForeignKey(d => d.IdPatente)
@@ -140,6 +187,15 @@ public partial class Lay_out_DBContext : DbContext
 
             entity.Property(e => e.Descripcion).HasMaxLength(255);
             entity.Property(e => e.FechaReg).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.Nombre).HasMaxLength(50);
+        });
+
+        modelBuilder.Entity<TipoVehiculo>(entity =>
+        {
+            entity.HasKey(e => e.IdTipoVehiculo).HasName("PK__TipoVehi__DC20741EA38B4636");
+
+            entity.Property(e => e.ImagenUrl).HasMaxLength(255);
+            entity.Property(e => e.LargoPx).HasDefaultValue(60);
             entity.Property(e => e.Nombre).HasMaxLength(50);
         });
 

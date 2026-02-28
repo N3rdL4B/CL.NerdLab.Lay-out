@@ -17,6 +17,8 @@ public partial class RegistroActividadBuses
 
     public DateTime? FechaReg { get; set; }
 
+    public string? NumeroRecorrido { get; set; }
+
     public virtual ICollection<HistorialRegistroCarga> HistorialRegistroCarga { get; set; } = new List<HistorialRegistroCarga>();
 
     public virtual Flota IdPatenteNavigation { get; set; } = null!;

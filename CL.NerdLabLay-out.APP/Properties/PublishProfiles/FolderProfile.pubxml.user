@@ -3,7 +3,7 @@
 <Project>
   <PropertyGroup>
     <_PublishTargetUrl>C:\CL.NerdLab.Lay-out\CL.NerdLabLay-out.APP\bin\Release\net8.0\publish\</_PublishTargetUrl>
-    <History>True|2026-02-26T14:33:34.3561302Z||;True|2026-02-26T09:58:41.0628154-03:00||;</History>
+    <History>True|2026-02-28T12:57:06.0791608Z||;True|2026-02-27T13:51:42.5608300-03:00||;True|2026-02-27T13:45:18.7711172-03:00||;True|2026-02-26T11:33:34.3561302-03:00||;True|2026-02-26T09:58:41.0628154-03:00||;</History>
     <LastFailureDetails />
   </PropertyGroup>
 </Project>

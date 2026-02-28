@@ -10,6 +10,8 @@ public partial class Patios
     public string Nombre { get; set; } = null!;
 
     public DateTime? FechaReg { get; set; }
-
+    public string Orientacion { get; set; } = "V";
     public virtual ICollection<Flota> Flota { get; set; } = new List<Flota>();
+
+    public virtual ICollection<PatioZonas> PatioZonas { get; set; } = new List<PatioZonas>();
 }

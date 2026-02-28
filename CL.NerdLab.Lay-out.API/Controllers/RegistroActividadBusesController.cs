@@ -17,20 +17,15 @@ namespace CL.NerdLab.Lay_out.API.Controllers
             _context = context;
         }
 
-        // =====================================================================
-        // TABLA PRINCIPAL: MUESTRA SOLO LOS REGISTROS DEL DÍA DE HOY
-        // =====================================================================
         [HttpGet("EstadoFlota")]
         public async Task<IActionResult> GetEstadoFlota()
         {
             try
             {
-                // TRUCO DE COLEGA: Ajustamos a la hora de Chile (UTC-3)
-                // Así nos aseguramos de que el rango sea de 00:00 a 23:59 hora local chilena
+                // Ajustamos a la hora de Chile (UTC-3)
                 DateTime horaChile = DateTime.UtcNow.AddHours(-3);
-                DateTime inicioHoyUtc = horaChile.Date.AddHours(3); // Las 00:00 de Chile, convertidas a UTC para la BD
+                DateTime inicioHoyUtc = horaChile.Date.AddHours(3); // Las 00:00 de Chile a UTC
 
-                // Traemos los buses activos y sus últimas actividades cruzadas
                 var flotaBruta = await _context.Flota
                     .Where(f => f.Activo == true)
                     .Select(f => new
@@ -43,7 +38,7 @@ namespace CL.NerdLab.Lay_out.API.Controllers
                     })
                     .ToListAsync();
 
-                // FILTRO ESTRICTO: Solo mandamos al Frontend los buses que tengan actividad a partir de las 00:00 de hoy
+                // FILTRO ESTRICTO: Solo buses con actividad HOY (00:00 a 23:59)
                 var resultado = flotaBruta
                     .Where(x => x.UltimaActividad != null && x.UltimaActividad.FechaReg >= inicioHoyUtc)
                     .Select(x => new
@@ -51,6 +46,13 @@ namespace CL.NerdLab.Lay_out.API.Controllers
                         patente = x.Patente,
                         estado = x.UltimaActividad!.EstadoActividadBus,
                         porcentaje = x.UltimaActividad.PorcentajeCarga,
+                        recorrido = x.UltimaActividad.NumeroRecorrido,
+                        tipoBus = _context.Flota.Include(f => f.IdTipoVehiculoNavigation)
+                                    .Where(f => f.IdPatente == x.UltimaActividad.IdPatente)
+                                    .Select(f => f.IdTipoVehiculoNavigation.Nombre).FirstOrDefault() ?? "Estándar",
+                        largoPx = _context.Flota.Include(f => f.IdTipoVehiculoNavigation)
+                                    .Where(f => f.IdPatente == x.UltimaActividad.IdPatente)
+                                    .Select(f => f.IdTipoVehiculoNavigation.LargoPx).FirstOrDefault() ?? 90,
                         activo = true
                     });
 
@@ -58,7 +60,7 @@ namespace CL.NerdLab.Lay_out.API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { success = false, message = "Error interno al traer la flota", details = ex.InnerException?.Message ?? ex.Message });
+                return StatusCode(500, new { success = false, message = "Error interno", details = ex.Message });
             }
         }
 
@@ -68,32 +70,23 @@ namespace CL.NerdLab.Lay_out.API.Controllers
             try
             {
                 var usuario = await _context.Usuarios.FirstOrDefaultAsync(u => u.Rut == request.RutUsuario);
-                if (usuario == null) return Ok(new { success = false, message = "Tu usuario no está autorizado para esto." });
+                if (usuario == null) return Ok(new { success = false, message = "Usuario no autorizado." });
 
-                if (string.IsNullOrWhiteSpace(request.Patente)) return Ok(new { success = false, message = "Patente no válida." });
-                request.Patente = request.Patente.ToUpper();
+                request.Patente = request.Patente?.ToUpper().Trim() ?? "";
 
                 using var transaction = await _context.Database.BeginTransactionAsync();
                 try
                 {
-                    // 1. AUTO-INSERCIÓN: Si la patente no existe, se crea
                     var bus = await _context.Flota.FirstOrDefaultAsync(f => f.Patente == request.Patente);
                     if (bus == null)
                     {
-                        var patio = await _context.Patios.FirstOrDefaultAsync();
-                        if (patio == null)
-                        {
-                            patio = new Patios { Nombre = "Terminal Central" };
-                            _context.Patios.Add(patio);
-                            await _context.SaveChangesAsync();
-                        }
-
+                        var patio = await _context.Patios.FirstOrDefaultAsync() ?? new Patios { Nombre = "Terminal Central" };
+                        if (patio.IdPatio == 0) { _context.Patios.Add(patio); await _context.SaveChangesAsync(); }
                         bus = new Flota { Patente = request.Patente, IdPatio = patio.IdPatio, Activo = true };
                         _context.Flota.Add(bus);
                         await _context.SaveChangesAsync();
                     }
 
-                    // 2. REGISTRO DE ACTIVIDAD PRINCIPAL (Foto del momento)
                     var actividad = await _context.RegistroActividadBuses.FirstOrDefaultAsync(r => r.IdPatente == bus.IdPatente);
                     if (actividad == null)
                     {
@@ -103,17 +96,16 @@ namespace CL.NerdLab.Lay_out.API.Controllers
 
                     actividad.EstadoActividadBus = request.Estado;
                     actividad.PorcentajeCarga = request.Porcentaje;
+                    if (request.NumeroRecorrido != null) { actividad.NumeroRecorrido = request.NumeroRecorrido; }
                     actividad.IdUsuario = usuario.IdUsuario;
                     actividad.FechaReg = DateTime.UtcNow;
                     await _context.SaveChangesAsync();
 
-                    // 3. LOG INMUTABLE DE LA ACCIÓN (Ledger-safe)
                     string accionLog = $"Cambió patente {bus.Patente} a estado {request.Estado}";
                     await _context.Database.ExecuteSqlInterpolatedAsync($@"
                         INSERT INTO LogsActividadUsuarios (IdUsuario, Accion, FechaReg) 
                         VALUES ({usuario.IdUsuario}, {accionLog}, {DateTime.UtcNow})");
 
-                    // 4. HISTORIAL DE CARGA INMUTABLE SI APLICA (Ledger-safe)
                     if (request.Estado == "Carga" && request.Porcentaje.HasValue)
                     {
                         await _context.Database.ExecuteSqlInterpolatedAsync($@"
@@ -127,106 +119,137 @@ namespace CL.NerdLab.Lay_out.API.Controllers
                 catch (Exception ex)
                 {
                     await transaction.RollbackAsync();
-                    return Ok(new { success = false, message = "Error de Base de Datos al guardar", details = ex.InnerException?.Message ?? ex.Message });
+                    return Ok(new { success = false, message = "Error BD", details = ex.Message });
                 }
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { success = false, message = "Falla crítica en el servidor", details = ex.Message });
+                return StatusCode(500, new { success = false, message = "Error servidor", details = ex.Message });
             }
         }
 
-        // =====================================================================
-        // MÉTODOS DE HISTORIAL GLOBAL
-        // =====================================================================
-
-        [HttpGet("HistorialCarga/Hoy")]
-        public async Task<IActionResult> GetHistorialCargaHoy()
+        [HttpPost("AsignarRecorrido")]
+        public async Task<IActionResult> AsignarRecorrido([FromBody] AsignarRecorridoDto request)
         {
             try
             {
-                // Mismo truco horario para el Historial de Hoy
-                DateTime horaChile = DateTime.UtcNow.AddHours(-3);
-                DateTime inicioHoyUtc = horaChile.Date.AddHours(3);
-                DateTime finHoyUtc = inicioHoyUtc.AddDays(1).AddTicks(-1);
+                var usuario = await _context.Usuarios.FirstOrDefaultAsync(u => u.Rut == request.RutUsuario);
+                if (usuario == null) return Ok(new { success = false, message = "Usuario no autorizado." });
 
-                var historial = await _context.HistorialRegistroCarga
-                    .Include(h => h.IdRegistroActividadNavigation).ThenInclude(r => r.IdPatenteNavigation)
-                    .Include(h => h.IdUsuarioModifNavigation)
-                    .Where(h => h.FechaModifRegistro >= inicioHoyUtc && h.FechaModifRegistro <= finHoyUtc)
-                    .OrderByDescending(h => h.FechaModifRegistro)
-                    .Select(h => new {
-                        Patente = h.IdRegistroActividadNavigation.IdPatenteNavigation.Patente,
-                        Fecha = h.FechaModifRegistro,
-                        Porcentaje = h.PorcentajeCarga,
-                        Usuario = h.IdUsuarioModifNavigation.NombreCompleto
-                    }).ToListAsync();
+                request.Patente = request.Patente?.ToUpper().Trim() ?? "";
 
-                return Ok(historial);
+                var bus = await _context.Flota.FirstOrDefaultAsync(f => f.Patente == request.Patente);
+                if (bus == null) return Ok(new { success = false, message = "El bus no existe." });
+
+                var actividad = await _context.RegistroActividadBuses.FirstOrDefaultAsync(r => r.IdPatente == bus.IdPatente);
+                if (actividad == null)
+                {
+                    actividad = new RegistroActividadBuses { IdPatente = bus.IdPatente, EstadoActividadBus = "Disponible" };
+                    _context.RegistroActividadBuses.Add(actividad);
+                }
+
+                actividad.NumeroRecorrido = request.NumeroRecorrido;
+                actividad.IdUsuario = usuario.IdUsuario;
+                actividad.FechaReg = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+
+                string accionLog = $"Asignó recorrido '{request.NumeroRecorrido}' a patente {bus.Patente}";
+                await _context.Database.ExecuteSqlInterpolatedAsync($@"
+                    INSERT INTO LogsActividadUsuarios (IdUsuario, Accion, FechaReg) 
+                    VALUES ({usuario.IdUsuario}, {accionLog}, {DateTime.UtcNow})");
+
+                return Ok(new { success = true });
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return Ok(new List<object>());
+                return StatusCode(500, new { success = false, message = "Error interno", details = ex.Message });
             }
+        }
+
+        [HttpGet("Patentes")]
+        public async Task<IActionResult> GetTodasLasPatentes()
+        {
+            var patentes = await _context.Flota.Where(f => f.Activo == true).Select(f => f.Patente).ToListAsync();
+            return Ok(patentes);
+        }
+
+        [HttpGet("HistorialCarga/Bus/{patente}")]
+        public async Task<IActionResult> GetHistorialBus(string patente)
+        {
+            var historial = await _context.HistorialRegistroCarga
+                .Include(h => h.IdRegistroActividadNavigation).ThenInclude(r => r.IdPatenteNavigation)
+                .Include(h => h.IdUsuarioModifNavigation)
+                .Where(h => h.IdRegistroActividadNavigation.IdPatenteNavigation.Patente == patente)
+                .OrderByDescending(h => h.FechaModifRegistro)
+                .Select(h => new { Fecha = h.FechaModifRegistro, Porcentaje = h.PorcentajeCarga, Usuario = h.IdUsuarioModifNavigation.NombreCompleto })
+                .ToListAsync();
+            return Ok(historial);
+        }
+
+        // --- HISTORIALES GLOBALES (Ahora incluyen el Estado del vehículo) ---
+        [HttpGet("HistorialCarga/Hoy")]
+        public async Task<IActionResult> GetHistorialCargaHoy()
+        {
+            DateTime horaChile = DateTime.UtcNow.AddHours(-3);
+            DateTime inicioHoyUtc = horaChile.Date.AddHours(3);
+            DateTime finHoyUtc = inicioHoyUtc.AddDays(1).AddTicks(-1);
+
+            var historial = await _context.HistorialRegistroCarga
+                .Include(h => h.IdRegistroActividadNavigation).ThenInclude(r => r.IdPatenteNavigation)
+                .Include(h => h.IdUsuarioModifNavigation)
+                .Where(h => h.FechaModifRegistro >= inicioHoyUtc && h.FechaModifRegistro <= finHoyUtc)
+                .OrderByDescending(h => h.FechaModifRegistro)
+                .Select(h => new {
+                    Patente = h.IdRegistroActividadNavigation.IdPatenteNavigation.Patente,
+                    Fecha = h.FechaModifRegistro,
+                    Porcentaje = h.PorcentajeCarga,
+                    Estado = h.IdRegistroActividadNavigation.EstadoActividadBus, // ¡NUEVO!
+                    Usuario = h.IdUsuarioModifNavigation.NombreCompleto
+                })
+                .ToListAsync();
+            return Ok(historial);
         }
 
         [HttpGet("HistorialCarga/Reciente")]
         public async Task<IActionResult> GetHistorialCargaReciente()
         {
-            try
-            {
-                // ÚLTIMOS 2 DÍAS 
-                DateTime horaChile = DateTime.UtcNow.AddHours(-3);
-                DateTime haceDosDiasUtc = horaChile.Date.AddDays(-2).AddHours(3);
-
-                var historial = await _context.HistorialRegistroCarga
-                    .Include(h => h.IdRegistroActividadNavigation).ThenInclude(r => r.IdPatenteNavigation)
-                    .Include(h => h.IdUsuarioModifNavigation)
-                    .Where(h => h.FechaModifRegistro >= haceDosDiasUtc)
-                    .OrderByDescending(h => h.FechaModifRegistro)
-                    .Select(h => new {
-                        Patente = h.IdRegistroActividadNavigation.IdPatenteNavigation.Patente,
-                        Fecha = h.FechaModifRegistro,
-                        Porcentaje = h.PorcentajeCarga,
-                        Usuario = h.IdUsuarioModifNavigation.NombreCompleto
-                    }).ToListAsync();
-
-                return Ok(historial);
-            }
-            catch (Exception)
-            {
-                return Ok(new List<object>());
-            }
+            DateTime haceDosDiasUtc = DateTime.UtcNow.AddHours(-3).Date.AddDays(-2).AddHours(3);
+            var historial = await _context.HistorialRegistroCarga
+                .Include(h => h.IdRegistroActividadNavigation).ThenInclude(r => r.IdPatenteNavigation)
+                .Include(h => h.IdUsuarioModifNavigation)
+                .Where(h => h.FechaModifRegistro >= haceDosDiasUtc)
+                .OrderByDescending(h => h.FechaModifRegistro)
+                .Select(h => new {
+                    Patente = h.IdRegistroActividadNavigation.IdPatenteNavigation.Patente,
+                    Fecha = h.FechaModifRegistro,
+                    Porcentaje = h.PorcentajeCarga,
+                    Estado = h.IdRegistroActividadNavigation.EstadoActividadBus, // ¡NUEVO!
+                    Usuario = h.IdUsuarioModifNavigation.NombreCompleto
+                })
+                .ToListAsync();
+            return Ok(historial);
         }
 
         [HttpGet("HistorialCarga/Rango")]
         public async Task<IActionResult> GetHistorialCargaRango([FromQuery] DateTime inicio, [FromQuery] DateTime fin)
         {
-            try
-            {
-                var fechaFin = fin.Date.AddDays(1).AddTicks(-1);
-
-                var historial = await _context.HistorialRegistroCarga
-                    .Include(h => h.IdRegistroActividadNavigation).ThenInclude(r => r.IdPatenteNavigation)
-                    .Include(h => h.IdUsuarioModifNavigation)
-                    .Where(h => h.FechaModifRegistro >= inicio.Date && h.FechaModifRegistro <= fechaFin)
-                    .OrderByDescending(h => h.FechaModifRegistro)
-                    .Select(h => new {
-                        Patente = h.IdRegistroActividadNavigation.IdPatenteNavigation.Patente,
-                        Fecha = h.FechaModifRegistro,
-                        Porcentaje = h.PorcentajeCarga,
-                        Usuario = h.IdUsuarioModifNavigation.NombreCompleto
-                    }).ToListAsync();
-
-                return Ok(historial);
-            }
-            catch (Exception)
-            {
-                return Ok(new List<object>());
-            }
+            var fechaFin = fin.Date.AddDays(1).AddTicks(-1);
+            var historial = await _context.HistorialRegistroCarga
+                .Include(h => h.IdRegistroActividadNavigation).ThenInclude(r => r.IdPatenteNavigation)
+                .Include(h => h.IdUsuarioModifNavigation)
+                .Where(h => h.FechaModifRegistro >= inicio.Date && h.FechaModifRegistro <= fechaFin)
+                .OrderByDescending(h => h.FechaModifRegistro)
+                .Select(h => new {
+                    Patente = h.IdRegistroActividadNavigation.IdPatenteNavigation.Patente,
+                    Fecha = h.FechaModifRegistro,
+                    Porcentaje = h.PorcentajeCarga,
+                    Estado = h.IdRegistroActividadNavigation.EstadoActividadBus, // ¡NUEVO!
+                    Usuario = h.IdUsuarioModifNavigation.NombreCompleto
+                })
+                .ToListAsync();
+            return Ok(historial);
         }
     }
-
-
-    public class CambioEstadoDto { public string Patente { get; set; } public string Estado { get; set; } public int? Porcentaje { get; set; } public string RutUsuario { get; set; } }
+    public class CambioEstadoDto { public string Patente { get; set; } public string Estado { get; set; } public int? Porcentaje { get; set; } public string? NumeroRecorrido { get; set; } public string RutUsuario { get; set; } }
+    public class AsignarRecorridoDto { public string Patente { get; set; } public string NumeroRecorrido { get; set; } public string RutUsuario { get; set; } }
 }

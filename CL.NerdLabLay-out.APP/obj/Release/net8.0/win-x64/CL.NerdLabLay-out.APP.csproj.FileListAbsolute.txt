@@ -31,3 +31,4 @@ C:\CL.NerdLab.Lay-out\CL.NerdLabLay-out.APP\obj\Release\net8.0\win-x64\refint\CL
 C:\CL.NerdLab.Lay-out\CL.NerdLabLay-out.APP\obj\Release\net8.0\win-x64\CL.NerdLabLay-out.APP.pdb
 C:\CL.NerdLab.Lay-out\CL.NerdLabLay-out.APP\obj\Release\net8.0\win-x64\CL.NerdLabLay-out.APP.genruntimeconfig.cache
 C:\CL.NerdLab.Lay-out\CL.NerdLabLay-out.APP\obj\Release\net8.0\win-x64\ref\CL.NerdLabLay-out.APP.dll
+C:\CL.NerdLab.Lay-out\CL.NerdLabLay-out.APP\obj\Release\net8.0\win-x64\CL.NerdLabLay-out.APP.sourcelink.json

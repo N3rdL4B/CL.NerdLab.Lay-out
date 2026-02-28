@@ -14,7 +14,7 @@ builder.Services.AddHttpClient<ApiService>();
 // Configurar Session para guardar el Rol del usuario logueado
 builder.Services.AddSession(options =>
 {
-    options.IdleTimeout = TimeSpan.FromMinutes(30);
+    options.IdleTimeout = TimeSpan.FromHours(12); // ¡12 horas de sesión!
     options.Cookie.HttpOnly = true;
     options.Cookie.IsEssential = true;
 });

@@ -31,3 +31,4 @@ C:\CL.NerdLab.Lay-out\CL.NerdLabLay-out.APP\obj\Debug\net8.0\CL.NerdLabLay-out.A
 C:\CL.NerdLab.Lay-out\CL.NerdLabLay-out.APP\obj\Debug\net8.0\CL.NerdLabLay-out.APP.genruntimeconfig.cache
 C:\CL.NerdLab.Lay-out\CL.NerdLabLay-out.APP\obj\Debug\net8.0\ref\CL.NerdLabLay-out.APP.dll
 C:\CL.NerdLab.Lay-out\CL.NerdLabLay-out.APP\obj\Debug\net8.0\staticwebassets.upToDateCheck.txt
+C:\CL.NerdLab.Lay-out\CL.NerdLabLay-out.APP\obj\Debug\net8.0\CL.NerdLabLay-out.APP.sourcelink.json

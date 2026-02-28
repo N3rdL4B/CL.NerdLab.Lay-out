@@ -9,6 +9,8 @@
     var rolLogueado = HttpContextAccessor.HttpContext.Session.GetString("UserRole")?.ToLower() ?? "";
 }
 
+<link href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css" rel="stylesheet" />
+
 <style>
     .patente-cl {
         display: inline-block;
@@ -58,16 +60,16 @@
         <span class="text-muted fw-bold me-2"><i class="fa-solid fa-circle-info"></i> Leyenda:</span>
         <span class="badge-estado estado-disponible"><i class="fa-solid fa-circle-check"></i> Disponible</span>
         <span class="badge-estado estado-carga"><i class="fa-solid fa-bolt"></i> Carga</span>
-        <span class="badge-estado estado-nodisponible"><i class="fa-solid fa-screwdriver-wrench"></i> No disponible</span>
+        <span class="badge-estado estado-nodisponible"><i class="fa-solid fa-screwdriver-wrench"></i> En taller</span>
         <span class="badge-estado estado-enuso"><i class="fa-solid fa-route"></i> En ruta</span>
     </div>
 
     <ul class="nav nav-tabs mb-4" id="flotaTabs" role="tablist">
-        <li class="nav-item" role="presentation"><button class="nav-link active fw-bold text-dark" id="actual-tab" data-bs-toggle="tab" data-bs-target="#tab-actual" type="button" role="tab"><i class="fa-solid fa-bus"></i> Estado Actual</button></li>
-        @if (rolLogueado == "admin" || rolLogueado == "visualizador")
-        {
-            <li class="nav-item" role="presentation"><button class="nav-link fw-bold text-dark" id="historial-tab" data-bs-toggle="tab" data-bs-target="#tab-historial" type="button" role="tab" onclick="app.cargarHistorial('Hoy')"><i class="fa-solid fa-clock-rotate-left"></i> Historial Global</button></li>
-        }
+        <li class="nav-item" role="presentation"><button class="nav-link active fw-bold text-dark" id="actual-tab" data-bs-toggle="tab" data-bs-target="#tab-actual" type="button" role="tab"><i class="fa-solid fa-bus-simple"></i> Flota Activa</button></li>
+        <li class="nav-item" role="presentation"><button class="nav-link fw-bold text-primary" id="ruta-tab" data-bs-toggle="tab" data-bs-target="#tab-ruta" type="button" role="tab"><i class="fa-solid fa-route"></i> En Ruta</button></li>
+        <li class="nav-item" role="presentation"><button class="nav-link fw-bold text-danger" id="taller-tab" data-bs-toggle="tab" data-bs-target="#tab-taller" type="button" role="tab"><i class="fa-solid fa-screwdriver-wrench"></i> En Taller</button></li>
+
+        <li class="nav-item" role="presentation"><button class="nav-link fw-bold text-dark" id="historial-tab" data-bs-toggle="tab" data-bs-target="#tab-historial" type="button" role="tab" onclick="app.cargarHistorial('Hoy')"><i class="fa-solid fa-clock-rotate-left"></i> Historial Global</button></li>
     </ul>
 
     <div class="tab-content" id="flotaTabsContent">
@@ -87,49 +89,231 @@
 
             <div class="bg-white p-3 rounded shadow-sm">
                 <div class="table-responsive">
-                    <table id="tabla-flota" class="table table-hover align-middle w-100 custom-table">
+                    <table id="tabla-flota" class="table table-hover align-middle w-100 custom-table dt-responsive nowrap" style="width: 100%;">
                         <thead class="table-light">
-                            <tr><th class="text-nowrap">Bus</th><th class="text-nowrap">Patente</th><th class="text-nowrap">Estado Actual</th><th class="text-nowrap">Carga %</th><th class="text-nowrap">Acciones Rápidas</th></tr>
+                            <tr><th class="text-nowrap">Bus</th><th class="text-nowrap">Patente</th><th class="text-nowrap">Recorrido</th><th class="text-nowrap">Estado Actual</th><th class="text-nowrap">Carga %</th><th class="text-nowrap">Acciones Rápidas</th></tr>
                         </thead>
                         <tbody></tbody>
                     </table>
                 </div>
             </div>
         </div>
-
-        @if (rolLogueado == "admin" || rolLogueado == "visualizador")
-        {
-            <div class="tab-pane fade" id="tab-historial" role="tabpanel">
-                <div class="bg-white p-3 rounded shadow-sm mb-4">
-                    <div class="row align-items-end">
-                        <div class="col-md-3 mb-2">
-                            <label class="form-label small fw-bold">Periodo:</label>
-                            <select id="filtro-historial-tipo" class="form-select border-info" onchange="app.toggleRangoFechas()">
-                                <option value="Hoy">Hoy (00:00 - 23:59)</option>
-                                <option value="Reciente">Últimos 2 Días</option>
-                                <option value="Rango">Rango de Fechas</option>
-                            </select>
-                        </div>
-                        <div class="col-md-3 mb-2 div-rango-fechas" style="display:none;"><label class="form-label small">Desde:</label><input type="date" id="filtro-fecha-inicio" class="form-control"></div>
-                        <div class="col-md-3 mb-2 div-rango-fechas" style="display:none;"><label class="form-label small">Hasta:</label><input type="date" id="filtro-fecha-fin" class="form-control"></div>
-                        <div class="col-md-3 mb-2"><button class="btn btn-dark w-100" onclick="app.aplicarFiltroHistorial()"><i class="fa-solid fa-filter"></i> Filtrar Data</button></div>
-                    </div>
-                </div>
-
-                <div class="bg-white p-3 rounded shadow-sm">
-                    <div class="table-responsive">
-                        <table id="tabla-historial-global" class="table table-hover align-middle w-100 custom-table">
-                            <thead class="table-light">
-                                <tr><th class="text-nowrap">Fecha/Hora</th><th class="text-nowrap">Patente</th><th class="text-nowrap">% Carga</th><th class="text-nowrap">Usuario Registrador</th></tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
+        <div class="tab-pane fade" id="tab-ruta" role="tabpanel">
+            <div class="bg-white p-3 rounded shadow-sm border-start border-primary border-4 mb-3">
+                <h5 class="text-primary fw-bold m-0"><i class="fa-solid fa-route"></i> Buses en Ruta</h5>
+                <small class="text-muted">Listado de máquinas prestando servicio en la calle.</small>
+            </div>
+            <div class="bg-white p-3 rounded shadow-sm">
+                <div class="table-responsive">
+                    <table id="tabla-ruta" class="table table-hover align-middle w-100 custom-table dt-responsive nowrap" style="width: 100%;">
+                        <thead class="table-light">
+                            <tr><th class="text-nowrap">Bus</th><th class="text-nowrap">Patente</th><th class="text-nowrap">Recorrido</th><th class="text-nowrap">Estado</th><th class="text-nowrap">Acciones Rápidas</th></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
                 </div>
             </div>
-        }
+        </div>
+        <div class="tab-pane fade" id="tab-taller" role="tabpanel">
+            <div class="bg-white p-3 rounded shadow-sm border-start border-danger border-4 mb-3">
+                <h5 class="text-danger fw-bold m-0"><i class="fa-solid fa-screwdriver-wrench"></i> Buses en Mantenimiento</h5>
+                <small class="text-muted">Listado de máquinas inoperativas.</small>
+            </div>
+            <div class="bg-white p-3 rounded shadow-sm">
+                <div class="table-responsive">
+                    <table id="tabla-taller" class="table table-hover align-middle w-100 custom-table dt-responsive nowrap" style="width: 100%;">
+                        <thead class="table-light">
+                            <tr><th class="text-nowrap">Bus</th><th class="text-nowrap">Patente</th><th class="text-nowrap">Estado</th><th class="text-nowrap">Acciones Rápidas</th></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="tab-pane fade" id="tab-historial" role="tabpanel">
+            <div class="bg-white p-3 rounded shadow-sm mb-4">
+                <div class="row align-items-end">
+                    <div class="col-md-3 mb-2">
+                        <label class="form-label small fw-bold">Periodo:</label>
+                        <select id="filtro-historial-tipo" class="form-select border-info" onchange="app.toggleRangoFechas()">
+                            <option value="Hoy">Hoy (00:00 - 23:59)</option>
+                            <option value="Reciente">Últimos 2 Días</option>
+                            <option value="Rango">Rango de Fechas</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 mb-2 div-rango-fechas" style="display:none;"><label class="form-label small">Desde:</label><input type="date" id="filtro-fecha-inicio" class="form-control"></div>
+                    <div class="col-md-3 mb-2 div-rango-fechas" style="display:none;"><label class="form-label small">Hasta:</label><input type="date" id="filtro-fecha-fin" class="form-control"></div>
+                    <div class="col-md-3 mb-2"><button class="btn btn-dark w-100" onclick="app.aplicarFiltroHistorial()"><i class="fa-solid fa-filter"></i> Filtrar Data</button></div>
+                </div>
+            </div>
+
+          <div class="bg-white p-3 rounded shadow-sm">
+                <div class="table-responsive">
+                    <table id="tabla-historial-global" class="table table-hover align-middle w-100 custom-table dt-responsive nowrap" style="width: 100%;">
+                        <thead class="table-light">
+                            <tr><th>Fecha/Hora</th><th>Patente</th><th>Estado</th><th>% Carga</th><th>Usuario Registrador</th><th>Acciones</th></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
+
+<style>
+    /* Estilos del Mapa 2D actualizados para Manito y Zoom */
+    .patio-canvas {
+        background-image: radial-gradient(#ccc 1px, transparent 1px);
+        background-size: 20px 20px;
+        background-color: #f0f0f0;
+        min-height: 600px;
+        overflow: hidden !important; /* Esconde las barras para usar la manito */
+        cursor: grab; /* Cursor de Manito */
+        position: relative;
+    }
+
+        .patio-canvas:active {
+            cursor: grabbing; /* Manito cerrada al arrastrar */
+        }
+
+    #render-patio-2d {
+        transform-origin: 0 0;
+        transition: transform 0.05s linear; /* Zoom y movimiento suave */
+        width: max-content; /* Permite que el área crezca */
+    }
+
+    .zona-grid {
+        display: grid;
+        gap: 5px;
+        padding: 15px;
+        border: 2px dashed #999;
+        border-radius: 8px;
+        position: relative;
+    }
+
+    .slot-item {
+        background: rgba(255,255,255,0.4);
+        border: 1px dashed #ccc;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative; /* Clave para la patente */
+    }
+
+    .bus-wrapper {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.3s ease;
+    }
+
+    .bus-2d {
+        background-color: transparent;
+        background-size: contain; /* ¡ESTO EVITA QUE SE APLASTEN! */
+        background-repeat: no-repeat;
+        background-position: center;
+        width: 30px; /* Ancho fijo del techo del bus */
+        filter: drop-shadow(2px 2px 3px rgba(0,0,0,0.4));
+        cursor: pointer;
+        transition: transform 0.2s;
+    }
+
+    .bus-2d:hover {
+        transform: scale(1.08);
+        z-index: 10;
+    }
+
+    .patente-flotante {
+        position: absolute;
+        top: -10px;
+        background: rgba(0,0,0,0.85);
+        padding: 2px 5px;
+        border-radius: 3px;
+        white-space: nowrap;
+        color: white;
+        font-size: 0.6rem;
+        z-index: 5;
+    }
+
+</style>
+
+<div id="content-layout" class="view-section app-content">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <h3><i class="fa-solid fa-map-location-dot text-danger"></i> Mapa de Patio</h3>
+
+        <div class="d-flex gap-3 align-items-center flex-wrap">
+            <div class="btn-group shadow-sm bg-white">
+                <button class="btn btn-light border" onclick="app.zoom(-0.1)" title="Alejar"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+                <button class="btn btn-light border" onclick="app.resetPanZoom()" title="Restaurar Vista Original"><i class="fa-solid fa-expand"></i></button>
+                <button class="btn btn-light border" onclick="app.zoom(0.1)" title="Acercar"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+            </div>
+
+            @if (rolLogueado == "admin")
+            {
+                <div>
+                    <button class="btn btn-outline-dark me-2 shadow-sm" id="btn-toggle-edicion" onclick="app.toggleModoEdicion()"><i class="fa-solid fa-pen-ruler"></i> Activar Edición</button>
+                    <button class="btn btn-redbus d-none shadow-sm" id="btn-agregar-zona" onclick="app.modalZona()"><i class="fa-solid fa-plus"></i> Agregar Paño/Zona</button>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="patio-canvas p-4 rounded shadow-inner" id="canvas-container">
+        <div id="render-patio-2d" class="d-flex flex-wrap gap-4 align-items-start"></div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalEdicionZona" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content border-top border-dark border-4">
+            <div class="modal-header"><h5 class="modal-title">Configurar Paño / Zona</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-6 mb-3"><label class="form-label">Filas (Largo)</label><input type="number" id="z-filas" class="form-control" min="1" value="5"></div>
+                    <div class="col-6 mb-3"><label class="form-label">Columnas (Ancho)</label><input type="number" id="z-columnas" class="form-control" min="1" value="2"></div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Orientación del Estacionamiento</label>
+                    <select id="z-orientacion" class="form-select">
+                        <option value="V">Vertical (Buses hacia arriba)</option>
+                        <option value="H">Horizontal (Buses de lado)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-dark w-100" onclick="app.guardarZona()">Guardar Paño</button></div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalAsignarSlot" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content border-top border-primary border-4">
+            <div class="modal-header"><h5 class="modal-title"><i class="fa-solid fa-bus"></i> Asignar Bus al Estacionamiento</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <input type="hidden" id="slot-id">
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Seleccione Patente (Solo disponibles)</label>
+                    <select id="slot-patente" class="form-select select2-modal w-100"></select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Tipo de Vehículo (Ajusta el tamaño)</label>
+                    <select id="slot-tipo" class="form-select">
+                        <option value="1">Chico (50px)</option>
+                        <option value="2" selected>Estandar (90px)</option>
+                        <option value="3">Articulado (140px)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer bg-light justify-content-between">
+                <button type="button" class="btn btn-outline-danger" onclick="app.quitarBusDeSlot()"><i class="fa-solid fa-trash"></i> Quitar del Mapa</button>
+                <button type="button" class="btn btn-primary px-4" onclick="app.guardarBusEnSlot()">Asignar / Mover</button>
+            </div>
+        </div>
+    </div>
+</div>
+    
 
 @if (rolLogueado == "admin")
 {
@@ -138,10 +322,10 @@
         <div class="bg-white p-3 rounded shadow-sm mb-4 text-end">
             <button class="btn btn-redbus" onclick="app.modalNuevoUsuario()"><i class="fa-solid fa-user-plus"></i> Agregar Nuevo Usuario</button>
         </div>
-        <div class="custom-table-container bg-white p-3 rounded shadow-sm">
+        <div class="bg-white p-3 rounded shadow-sm">
             <div class="table-responsive">
-                <table class="table table-hover align-middle custom-table mb-0 w-100">
-                    <thead><tr><th class="text-nowrap">Nombre</th><th class="text-nowrap">RUT</th><th class="text-nowrap">Email</th><th class="text-nowrap">Rol</th><th class="text-nowrap">Estado</th><th class="text-nowrap">Acciones</th></tr></thead>
+                <table id="tabla-usuarios-full" class="table table-hover align-middle custom-table mb-0 w-100 dt-responsive nowrap" style="width: 100%;">
+                    <thead><tr><th>Nombre</th><th>RUT</th><th>Email</th><th>Rol</th><th>Estado</th><th>Acciones</th></tr></thead>
                     <tbody id="tabla-usuarios-body"></tbody>
                 </table>
             </div>
@@ -161,8 +345,11 @@
             <div class="modal-body">
                 <div class="mb-3">
                     <label class="form-label fw-bold">Modificar Estado</label>
-                    <select id="modal-select-estado" class="form-select form-select-lg shadow-sm" onchange="app.checkCargaInput()">
-                    </select>
+                    <select id="modal-select-estado" class="form-select form-select-lg shadow-sm" onchange="app.checkModalInputs()"></select>
+                </div>
+                <div class="mb-3" id="div-recorrido" style="display: none;">
+                    <label class="form-label fw-bold text-primary">Número de Recorrido <i class="fa-solid fa-route"></i></label>
+                    <input type="text" id="modal-input-recorrido" class="form-control form-control-lg border-primary shadow-sm" placeholder="Ej: 210, 203N">
                 </div>
                 <div class="mb-3" id="div-carga-porcentaje" style="display: none;">
                     <label class="form-label fw-bold text-warning">Porcentaje de Batería (%) <i class="fa-solid fa-bolt"></i></label>
@@ -177,6 +364,24 @@
     </div>
 </div>
 
+<div class="modal fade" id="modalRecorridoIndependiente" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content border-top border-primary border-4">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fa-solid fa-route text-primary me-2"></i> Asignar Recorrido</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <span id="recorrido-modal-patente" class="patente-cl mb-3"></span>
+                <input type="text" id="input-recorrido-independiente" class="form-control form-control-lg text-center fw-bold shadow-sm" placeholder="Ej: 210">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary w-100" onclick="app.saveRecorridoIndependiente()">Asignar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="modalHistorialBus" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content border-top border-info border-4">
@@ -184,13 +389,11 @@
                 <h5 class="modal-title d-flex align-items-center"><i class="fa-solid fa-clock-rotate-left me-2 text-info"></i> Historial de: <span id="historial-bus-patente" class="patente-cl ms-3"></span></h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body">
-                <div class="table-responsive">
-                    <table class="table table-striped align-middle table-sm w-100">
-                        <thead class="table-light"><tr><th class="text-nowrap">Fecha/Hora</th><th class="text-nowrap">Registrador</th><th class="text-nowrap">% Carga</th></tr></thead>
-                        <tbody id="tabla-historial-bus-body"></tbody>
-                    </table>
-                </div>
+            <div class="modal-body p-0">
+                <table class="table table-striped align-middle table-sm w-100 m-0">
+                    <thead class="table-light"><tr><th class="ps-3">Fecha/Hora</th><th>Registrador</th><th>% Carga</th></tr></thead>
+                    <tbody id="tabla-historial-bus-body"></tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -232,31 +435,37 @@
 }
 
 @section Scripts {
+    <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+    <script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
+
     <script>
         var app = {
             role: window.SERVER_DATA.rol,
             rut: window.SERVER_DATA.rut,
             buses: [],
-            patentesGlobales: [], // Lista completa para el Select2
+            patentesGlobales: [],
             dtActual: null,
             dtHistorial: null,
-
-            iconos: { 'Disponible': '<i class="fa-solid fa-circle-check"></i>', 'Carga': '<i class="fa-solid fa-bolt"></i>', 'No disponible': '<i class="fa-solid fa-screwdriver-wrench"></i>', 'En ruta': '<i class="fa-solid fa-route"></i>' },
+            dtTaller: null, // <--- NUEVA
+            dtRuta: null, // <--- NUEVA VARIABLE
+            modoEdicionLayout: false,
+            patentesUsadasEnMapa: [],
+            zoomScale: 1, panX: 0, panY: 0, isPanning: false, startX: 0, startY: 0,
+            iconos: { 'Disponible': '<i class="fa-solid fa-circle-check"></i>', 'Carga': '<i class="fa-solid fa-bolt"></i>', 'En taller': '<i class="fa-solid fa-screwdriver-wrench"></i>', 'En ruta': '<i class="fa-solid fa-route"></i>' },
 
             getBusIcon: function(estado) {
-                const colors = { 'Disponible': 'text-success', 'Carga': 'text-warning', 'No disponible': 'text-danger', 'En ruta': 'text-primary' };
+                const colors = { 'Disponible': 'text-success', 'Carga': 'text-warning', 'En taller': 'text-danger', 'En ruta': 'text-primary' };
                 return `<i class="fa-solid fa-bus fa-2x ${colors[estado] || 'text-secondary'}"></i>`;
             },
 
             init: function() {
-                this.cargarPatentesGlobales(); // Carga el select2 con TODO el universo
+                this.initPanZoom(); // <--- INICIA LA MANITO AQUÍ
+                this.cargarPatentesGlobales();
                 this.cargarFlotaDesdeAPI();
                 if(this.role === 'admin') { this.cargarRoles(); this.cargarUsuarios(); }
-
                 setInterval(() => { this.cargarFlotaDesdeAPI(); }, 300000);
             },
 
-            // --- CARGAS Y TABLA ACTUAL ---
             cargarPatentesGlobales: function() {
                 fetch('?handler=Patentes').then(r => r.json()).then(data => {
                     this.patentesGlobales = Array.isArray(data) ? data : [];
@@ -265,10 +474,16 @@
             },
 
             cargarFlotaDesdeAPI: function() {
+                // TRUCO UX: Guardamos la posición del scroll antes de actualizar
+                let currentScroll = window.scrollY;
+
                 fetch('?handler=Flota').then(r => r.json()).then(data => {
                     this.buses = Array.isArray(data) ? data : [];
                     this.setupDataTableActual();
                     this.renderCharts();
+
+                    // Restauramos el scroll silenciosamente
+                    window.scrollTo(0, currentScroll);
                 });
             },
 
@@ -278,191 +493,237 @@
                 $select.empty();
                 $select.append(new Option('', '', true, true));
 
-                // Llenamos con TODA la flota existente
-                $select.select2({ tags: true, placeholder: "Ejemplo: SFWB76", allowClear: true, data: this.patentesGlobales.map(p => ({id: p, text: p})), width: '100%' });
+                this.patentesGlobales.forEach(p => {
+                    $select.append(new Option(p, p, false, false));
+                });
+
+                $select.select2({ tags: true, placeholder: "Escriba para buscar o crear nueva", allowClear: true, width: '100%' });
             },
 
             setupDataTableActual: function() {
-                let tableData = Array.isArray(this.buses) ? this.buses : [];
+                // Filtramos la data en 3 grupos exactos
+                let dataActiva = this.buses.filter(b => b.estado === 'Disponible' || b.estado === 'Carga');
+                let dataTaller = this.buses.filter(b => b.estado === 'En taller');
+                let dataRuta = this.buses.filter(b => b.estado === 'En ruta');
+
+                // 1. DIBUJAR TABLA FLOTA ACTIVA (Solo Disponible y Carga)
                 if(this.dtActual) {
-                    this.dtActual.clear(); this.dtActual.rows.add(tableData); this.dtActual.draw(false);
+                    this.dtActual.clear();
+                    this.dtActual.rows.add(dataActiva);
+                    this.dtActual.draw(false);
                 } else {
                     this.dtActual = $('#tabla-flota').DataTable({
-                        data: tableData,
+                        data: dataActiva,
+                        responsive: true,
+                        columns: [
+                            { data: 'estado', render: (data) => `<div class="text-center">${this.getBusIcon(data)}</div>`, width: '60px' },
+                            { data: 'patente', render: data => `<span class="patente-cl">${data}</span>` },
+                            { data: 'recorrido', render: data => data ? `<strong>${data}</strong>` : '-' },
+                            { data: 'estado', render: data => this.renderBadge(data) },
+                            { data: 'porcentaje', render: data => data ? `<span class="badge bg-warning text-dark fs-6 shadow-sm">${data}% <i class="fa-solid fa-bolt"></i></span>` : '-' },
+                            { data: null, render: data => this.renderActionButtons(data), className: 'text-nowrap' }
+                        ],
+                        language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' }, pageLength: 10, order: [[3, 'asc']]
+                    });
+                }
+
+                // 2. DIBUJAR TABLA TALLER
+                if(this.dtTaller) {
+                    this.dtTaller.clear();
+                    this.dtTaller.rows.add(dataTaller);
+                    this.dtTaller.draw(false);
+                } else {
+                    this.dtTaller = $('#tabla-taller').DataTable({
+                        data: dataTaller,
+                        responsive: true,
                         columns: [
                             { data: 'estado', render: (data) => `<div class="text-center">${this.getBusIcon(data)}</div>`, width: '60px' },
                             { data: 'patente', render: data => `<span class="patente-cl">${data}</span>` },
                             { data: 'estado', render: data => this.renderBadge(data) },
-                            { data: 'porcentaje', render: data => data ? `<span class="badge bg-warning text-dark fs-6 shadow-sm">${data}% <i class="fa-solid fa-bolt"></i></span>` : '-' },
-                            { data: null, render: data => this.renderActionButtons(data), className: 'text-nowrap' } // text-nowrap para responsive
+                            { data: null, render: data => this.renderActionButtons(data), className: 'text-nowrap' }
                         ],
-                        language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' }, pageLength: 10, order: [[2, 'asc']]
+                        language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' }, pageLength: 10
+                    });
+                }
+
+                // 3. DIBUJAR TABLA EN RUTA
+                if(this.dtRuta) {
+                    this.dtRuta.clear();
+                    this.dtRuta.rows.add(dataRuta);
+                    this.dtRuta.draw(false);
+                } else {
+                    this.dtRuta = $('#tabla-ruta').DataTable({
+                        data: dataRuta,
+                        responsive: true,
+                        columns: [
+                            { data: 'estado', render: (data) => `<div class="text-center">${this.getBusIcon(data)}</div>`, width: '60px' },
+                            { data: 'patente', render: data => `<span class="patente-cl">${data}</span>` },
+                            { data: 'recorrido', render: data => data ? `<strong>${data}</strong>` : '-' },
+                            { data: 'estado', render: data => this.renderBadge(data) },
+                            { data: null, render: data => this.renderActionButtons(data), className: 'text-nowrap' }
+                        ],
+                        language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' }, pageLength: 10
                     });
                 }
             },
-
             renderBadge: function(estado) {
-                const classes = { 'Disponible': 'estado-disponible', 'Carga': 'estado-carga', 'No disponible': 'estado-nodisponible', 'En ruta': 'estado-enuso' };
+                const classes = { 'Disponible': 'estado-disponible', 'Carga': 'estado-carga', 'En taller': 'estado-nodisponible', 'En ruta': 'estado-enuso' };
                 return `<span class="badge-estado ${classes[estado] || 'bg-secondary'}">${this.iconos[estado]||''} ${estado}</span>`;
             },
 
-                   renderActionButtons: function(bus) {
-            let btns = `<div class="d-flex gap-2 flex-wrap align-items-center">`;
+            renderActionButtons: function(bus) {
+                // Cambiamos gap-2 a gap-1 para que estén más juntitos
+                let btns = `<div class="d-flex gap-1 flex-wrap align-items-center">`;
 
-            const historialBtn = (patente) =>
-                `<button class="btn btn-sm btn-info text-white shadow-sm"
-                    title="Historial Carga"
-                    onclick="app.verHistorialBus('${patente}')">
-                    <i class="fa-solid fa-clock-rotate-left"></i>
-                </button>`;
-
-            if (this.role === 'visualizador') {
-                if (bus.estado === 'Disponible') {
-                    btns += `<button class="btn btn-sm btn-primary" onclick="app.directUpdate('${bus.patente}', 'En ruta')">
-                                <i class="fa-solid fa-route"></i>
-                            </button>`;
-                    btns += `<button class="btn btn-sm btn-danger" onclick="app.directUpdate('${bus.patente}', 'No disponible')">
-                                <i class="fa-solid fa-ban"></i> 
-                            </button>`;
-                    btns += historialBtn(bus.patente);
-                } else if (bus.estado === 'No disponible' || bus.estado === 'En ruta') {
-                    btns += `<button class="btn btn-sm btn-success" onclick="app.directUpdate('${bus.patente}', 'Disponible')">
-                                <i class="fa-solid fa-check"></i> 
-                            </button>`;
-                    btns += historialBtn(bus.patente);
-                } else {
-                    btns += `<span class="text-muted small fst-italic">En Carga (Solo Ingresador)</span>`;
+                if (this.role === 'visualizador') {
+                    if (bus.estado === 'Disponible') {
+                        btns += `<button class="btn btn-sm btn-primary shadow-sm" title="A Ruta" onclick="app.openModal('${bus.patente}', 'En ruta')"><i class="fa-solid fa-route"></i></button> `;
+                        btns += `<button class="btn btn-sm btn-danger shadow-sm" title="A Taller" onclick="app.directUpdate('${bus.patente}', 'En taller')"><i class="fa-solid fa-screwdriver-wrench"></i></button>`;
+                    } else if (bus.estado === 'En taller' || bus.estado === 'En ruta') {
+                        btns += `<button class="btn btn-sm btn-success shadow-sm" title="A Disponible" onclick="app.directUpdate('${bus.patente}', 'Disponible')"><i class="fa-solid fa-check"></i></button>`;
+                    } else {
+                        btns += `<span class="text-muted small fst-italic">En Carga</span>`;
+                    }
                 }
-            }
-
-            else if (this.role === 'ingresador') {
-                if (bus.estado === 'Disponible') {
-                    btns += `<button class="btn btn-sm btn-warning text-dark fw-bold shadow-sm" onclick="app.openModal('${bus.patente}', 'Carga')">
-                                <i class="fa-solid fa-plug"></i> 
-                            </button>`;
-                    btns += `<button class="btn btn-sm btn-danger shadow-sm" onclick="app.directUpdate('${bus.patente}', 'No disponible')">
-                                <i class="fa-solid fa-ban"></i> 
-                            </button>`;
-                    btns += historialBtn(bus.patente);
+                else if (this.role === 'ingresador') {
+                    if (bus.estado === 'Disponible') {
+                        btns += `<button class="btn btn-sm btn-warning text-dark fw-bold shadow-sm" title="A Carga" onclick="app.openModal('${bus.patente}', 'Carga')"><i class="fa-solid fa-plug"></i></button>`;
+                        btns += `<button class="btn btn-sm btn-primary shadow-sm" title="A Ruta" onclick="app.openModal('${bus.patente}', 'En ruta')"><i class="fa-solid fa-route"></i></button>`;
+                        btns += `<button class="btn btn-sm btn-danger shadow-sm" title="A Taller" onclick="app.directUpdate('${bus.patente}', 'En taller')"><i class="fa-solid fa-screwdriver-wrench"></i></button>`;
+                    } else if (bus.estado === 'Carga') {
+                        btns += `<button class="btn btn-sm btn-outline-warning text-dark fw-bold" title="Actualizar Nivel Carga" onclick="app.openModal('${bus.patente}', 'Carga')"><i class="fa-solid fa-battery-half"></i></button>`;
+                        btns += `<button class="btn btn-sm btn-success shadow-sm" title="A Disponible" onclick="app.directUpdate('${bus.patente}', 'Disponible')"><i class="fa-solid fa-check"></i></button>`;
+                        btns += `<button class="btn btn-sm btn-danger shadow-sm" title="A Taller" onclick="app.directUpdate('${bus.patente}', 'En taller')"><i class="fa-solid fa-screwdriver-wrench"></i></button>`;
+                    } else if (bus.estado === 'En taller' || bus.estado === 'En ruta') {
+                        btns += `<button class="btn btn-sm btn-success shadow-sm" title="A Disponible" onclick="app.directUpdate('${bus.patente}', 'Disponible')"><i class="fa-solid fa-check"></i></button>`;
+                    }
                 }
-                else if (bus.estado === 'Carga') {
-                    btns += `<button class="btn btn-sm btn-outline-warning text-dark fw-bold" onclick="app.openModal('${bus.patente}', 'Carga')">
-                                <i class="fa-solid fa-battery-half"></i> 
-                            </button>`;
-                    btns += `<button class="btn btn-sm btn-success shadow-sm" onclick="app.directUpdate('${bus.patente}', 'Disponible')">
-                                <i class="fa-solid fa-check"></i> 
-                            </button>`;
-                    btns += `<button class="btn btn-sm btn-danger shadow-sm" onclick="app.directUpdate('${bus.patente}', 'No disponible')">
-                                <i class="fa-solid fa-ban"></i> 
-                            </button>`;
-                    btns += historialBtn(bus.patente);
+                else if (this.role === 'admin') {
+                    btns += `<button class="btn btn-sm btn-dark shadow-sm" title="Forzar Estado" onclick="app.openModal('${bus.patente}', '${bus.estado}')"><i class="fa-solid fa-gear"></i></button>`;
                 }
-                else if (bus.estado === 'No disponible') {
-                    btns += `<button class="btn btn-sm btn-success shadow-sm" onclick="app.directUpdate('${bus.patente}', 'Disponible')">
-                                <i class="fa-solid fa-check"></i> 
-                            </button>`;
-                    btns += historialBtn(bus.patente);
+
+                // NUEVO BOTÓN: ASIGNAR RECORRIDO INDEPENDIENTE
+                if (bus.estado !== 'En taller') {
+                    btns += `<button class="btn btn-sm btn-outline-primary text-primary border-primary shadow-sm" title="Pre-asignar o cambiar recorrido" onclick="app.openModalRecorrido('${bus.patente}', '${bus.recorrido || ''}')"><i class="fa-solid fa-map-location-dot"></i></button>`;
                 }
-                else {
-                    btns += `<span class="text-muted small fst-italic">En Ruta (Solo Visualizador)</span>`;
-                }
-            }
 
-            else if (this.role === 'admin') {
-                btns += `<button class="btn btn-sm btn-dark" onclick="app.openModal('${bus.patente}', '${bus.estado}')">
-                            <i class="fa-solid fa-gear"></i> Forzar Estado
-                        </button>`;
-                btns += historialBtn(bus.patente);
-            }
+                // LE QUITÉ EL "ms-auto" A ESTE BOTÓN PARA QUE NO SE ARRANQUE A LA DERECHA
+                btns += `<button class="btn btn-sm btn-info text-white shadow-sm" title="Ver Historial de Carga" onclick="app.verHistorialBus('${bus.patente}')"><i class="fa-solid fa-clock-rotate-left"></i></button></div>`;
 
-            btns += `</div>`;
-            return btns;
-        },
+                return btns;
+            },
 
-            // --- HISTORIAL INDIVIDUAL ---
+            openModalRecorrido: function(patente, recorridoActual) {
+                document.getElementById('recorrido-modal-patente').innerText = patente;
+                document.getElementById('input-recorrido-independiente').value = recorridoActual;
+                new bootstrap.Modal(document.getElementById('modalRecorridoIndependiente')).show();
+            },
+
+            saveRecorridoIndependiente: function() {
+                let patente = document.getElementById('recorrido-modal-patente').innerText;
+                let recorrido = document.getElementById('input-recorrido-independiente').value;
+                if(!recorrido) return Swal.fire('Error', 'Ingrese un número de recorrido', 'error');
+
+                bootstrap.Modal.getInstance(document.getElementById('modalRecorridoIndependiente')).hide();
+
+                let scrollY = window.scrollY; // Guardamos el scroll
+                Swal.fire({ title: 'Asignando...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+                fetch('?handler=AsignarRecorrido', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value },
+                    body: JSON.stringify({ Patente: patente, NumeroRecorrido: recorrido, RutUsuario: this.rut })
+                }).then(r => r.json()).then(data => {
+                    if(data.success) {
+                        Swal.fire({icon: 'success', title: 'Recorrido Asignado', showConfirmButton: false, timer: 1000});
+                        this.cargarFlotaDesdeAPI();
+                        window.scrollTo(0, scrollY); // Restauramos el scroll
+                    } else { Swal.fire('Error', data.message, 'error'); }
+                }).catch(() => Swal.fire('Error', 'Falla de conexión.', 'error'));
+            },
+
             verHistorialBus: function(patente) {
                 document.getElementById('historial-bus-patente').innerText = patente;
-                document.getElementById('tabla-historial-bus-body').innerHTML = '<tr><td colspan="3" class="text-center"><i class="fa-solid fa-spinner fa-spin"></i> Cargando...</td></tr>';
+                document.getElementById('tabla-historial-bus-body').innerHTML = '<tr><td colspan="3" class="text-center py-4"><i class="fa-solid fa-spinner fa-spin fa-2x"></i></td></tr>';
                 new bootstrap.Modal(document.getElementById('modalHistorialBus')).show();
 
                 fetch(`?handler=HistorialBus&patente=${patente}`).then(r => r.json()).then(data => {
                     let html = '';
-                    if(!Array.isArray(data) || data.length === 0) html = '<tr><td colspan="3" class="text-center text-muted">Sin historial de carga inmutable</td></tr>';
-                    else {
-                        data.forEach(d => { html += `<tr><td>${new Date(d.fecha).toLocaleString('es-CL')}</td><td><strong>${d.usuario}</strong></td><td><span class="badge bg-warning text-dark">${d.porcentaje}% <i class="fa-solid fa-bolt"></i></span></td></tr>`; });
-                    }
+                    if(!Array.isArray(data) || data.length === 0) html = '<tr><td colspan="3" class="text-center text-muted py-3">Sin historial de carga</td></tr>';
+                    else { data.forEach(d => { html += `<tr><td class="ps-3">${new Date(d.fecha).toLocaleString('es-CL')}</td><td><strong>${d.usuario}</strong></td><td><span class="badge bg-warning text-dark">${d.porcentaje}% <i class="fa-solid fa-bolt"></i></span></td></tr>`; }); }
                     document.getElementById('tabla-historial-bus-body').innerHTML = html;
                 });
             },
 
-            // --- ACTUALIZACIONES Y MODAL INTELIGENTE ---
             openModalFromInput: function() {
                 let patente = $('#input-patente').val();
                 if(!patente) return Swal.fire('Atención', 'Debe escribir o seleccionar una patente.', 'warning');
                 patente = patente.toUpperCase().replace(/[^A-Z0-9]/g, '');
                 let bus = Array.isArray(this.buses) ? this.buses.find(b => b.patente === patente) : null;
                 document.getElementById('modal-input-carga').value = '';
+                document.getElementById('modal-input-recorrido').value = '';
                 this.openModal(patente, bus ? bus.estado : 'Disponible');
             },
 
             openModal: function(patente, estadoActual) {
                 document.getElementById('modal-patente').innerText = patente;
-
-                // LÓGICA DINÁMICA DEL SELECT (Sin colores, filtrado por rol)
                 let sel = document.getElementById('modal-select-estado');
                 let html = '<option value="Disponible">Disponible</option>';
                 if(this.role === 'ingresador' || this.role === 'admin') html += '<option value="Carga">Carga</option>';
-                html += '<option value="No disponible">No disponible</option>';
-                if(this.role === 'visualizador' || this.role === 'admin') html += '<option value="En ruta">En ruta</option>';
+                html += '<option value="En taller">En taller</option>';
+                if(this.role === 'visualizador' || this.role === 'ingresador' || this.role === 'admin') html += '<option value="En ruta">En ruta</option>';
                 sel.innerHTML = html;
 
-                // Setear valor y limpiar input de carga si existe
                 sel.value = estadoActual;
                 let bus = Array.isArray(this.buses) ? this.buses.find(b => b.patente === patente) : null;
                 document.getElementById('modal-input-carga').value = bus?.porcentaje || '';
+                document.getElementById('modal-input-recorrido').value = bus?.recorrido || '';
 
-                this.checkCargaInput();
+                this.checkModalInputs();
                 new bootstrap.Modal(document.getElementById('modalEstado')).show();
             },
 
-            checkCargaInput: function() {
+            checkModalInputs: function() {
                 const e = document.getElementById('modal-select-estado').value;
                 document.getElementById('div-carga-porcentaje').style.display = (e === 'Carga') ? 'block' : 'none';
+                document.getElementById('div-recorrido').style.display = (e === 'En ruta') ? 'block' : 'none';
             },
 
             saveEstado: function() {
                 const patente = document.getElementById('modal-patente').innerText;
                 const estado = document.getElementById('modal-select-estado').value;
                 let porcentaje = (estado === 'Carga') ? document.getElementById('modal-input-carga').value : null;
+                let recorrido = (estado === 'En ruta') ? document.getElementById('modal-input-recorrido').value : null;
+
                 if (estado === 'Carga' && !porcentaje) return Swal.fire('Error', 'Ingrese porcentaje', 'error');
+                if (estado === 'En ruta' && !recorrido) return Swal.fire('Error', 'Ingrese Número de Recorrido', 'error');
 
                 let m = bootstrap.Modal.getInstance(document.getElementById('modalEstado'));
                 if(m) m.hide();
-                this.directUpdate(patente, estado, porcentaje);
+                this.directUpdate(patente, estado, porcentaje, recorrido);
             },
 
-            directUpdate: function(patente, estado, porcentaje = null) {
+            directUpdate: function(patente, estado, porcentaje = null, recorrido = null) {
+                let scrollY = window.scrollY; // Guardamos el scroll
                 Swal.fire({ title: 'Actualizando flota...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
                 fetch('?handler=CambiarEstado', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value },
-                    body: JSON.stringify({ Patente: patente, Estado: estado, Porcentaje: parseInt(porcentaje) || null, RutUsuario: this.rut })
+                    body: JSON.stringify({ Patente: patente, Estado: estado, Porcentaje: parseInt(porcentaje) || null, NumeroRecorrido: recorrido, RutUsuario: this.rut })
                 }).then(r => r.json()).then(data => {
                     if(data.success) {
                         Swal.fire({icon: 'success', title: '¡Guardado!', showConfirmButton: false, timer: 1000});
                         this.cargarFlotaDesdeAPI();
-
-                        // Si era patente nueva, la inyectamos silenciosamente al select global
                         if(!this.patentesGlobales.includes(patente)) {
                             this.patentesGlobales.push(patente);
-                            let newOption = new Option(patente, patente, false, false);
-                            $('#input-patente').append(newOption).trigger('change');
+                            $('#input-patente').append(new Option(patente, patente, false, false)).trigger('change');
                         }
+                        window.scrollTo(0, scrollY); // Restauramos el scroll
                     } else { Swal.fire('Error', data.message, 'error'); }
                 }).catch(() => Swal.fire('Error', 'Falla de conexión.', 'error'));
             },
 
-            // --- HISTORIAL GLOBAL ---
             toggleRangoFechas: function() { const t = document.getElementById('filtro-historial-tipo').value; document.querySelectorAll('.div-rango-fechas').forEach(el => el.style.display = (t === 'Rango') ? 'block' : 'none'); },
             aplicarFiltroHistorial: function() {
                 const t = document.getElementById('filtro-historial-tipo').value; const i = document.getElementById('filtro-fecha-inicio').value; const f = document.getElementById('filtro-fecha-fin').value;
@@ -470,27 +731,42 @@
                 this.cargarHistorial(t, i, f);
             },
             cargarHistorial: function(filtro, inicio = '', fin = '') {
+                let scrollY = window.scrollY;
                 Swal.fire({ title: 'Cargando historial...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
                 let url = `?handler=HistorialGlobal&filtro=${filtro}`; if(filtro === 'Rango') url += `&inicio=${inicio}&fin=${fin}`;
                 fetch(url).then(r => r.json()).then(data => {
                     Swal.close(); let histData = Array.isArray(data) ? data : [];
                     if(this.dtHistorial) { this.dtHistorial.clear(); this.dtHistorial.rows.add(histData); this.dtHistorial.draw(false); }
                     else {
-                        this.dtHistorial = $('#tabla-historial-global').DataTable({ data: histData, columns: [ { data: 'fecha', render: d => new Date(d).toLocaleString('es-CL'), className: 'text-nowrap' }, { data: 'patente', render: d => `<span class="patente-cl" style="font-size:0.8rem;">${d}</span>` }, { data: 'porcentaje', render: d => d ? `<span class="badge bg-warning text-dark shadow-sm">${d}% <i class="fa-solid fa-bolt"></i></span>` : '-' }, { data: 'usuario', render: d => `<strong>${d}</strong>` } ], language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' }, order: [[0, 'desc']] });
+                        this.dtHistorial = $('#tabla-historial-global').DataTable({
+                            data: histData, responsive: true,
+                            columns: [
+                                { data: 'fecha', render: d => new Date(d).toLocaleString('es-CL'), className: 'text-nowrap' },
+                                { data: 'patente', render: d => `<span class="patente-cl" style="font-size:0.8rem;">${d}</span>` },
+                                { data: 'estado', render: d => this.renderBadge(d) }, // ¡NUEVA COLUMNA ESTADO EN HISTORIAL!
+                                { data: 'porcentaje', render: d => d ? `<span class="badge bg-warning text-dark shadow-sm">${d}% <i class="fa-solid fa-bolt"></i></span>` : '-' },
+                                { data: 'usuario', render: d => `<strong>${d}</strong>` },
+                                { data: 'patente', render: d => `<button class="btn btn-sm btn-info text-white shadow-sm" title="Ver Historial" onclick="app.verHistorialBus('${d}')"><i class="fa-solid fa-clock-rotate-left"></i></button>` }
+                            ],
+                            language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' }, order: [[0, 'desc']]
+                        });
                     }
+                    window.scrollTo(0, scrollY);
                 }).catch(() => Swal.fire('Error', 'No se pudo cargar el historial', 'error'));
             },
 
-            // --- NAVEGACIÓN Y USUARIOS ---
             toggleMenu: function(force) { const s = document.getElementById('sidebar'); if (force === false) s.classList.remove('open'); else s.classList.toggle('open'); },
-            navigate: function(v) { document.querySelectorAll('#view-app .view-section').forEach(el => el.classList.remove('active')); document.querySelectorAll('.sidebar-menu a').forEach(el => el.classList.remove('active')); document.getElementById('content-' + v).classList.add('active'); document.getElementById('nav-' + v).classList.add('active'); this.toggleMenu(false); if(v === 'dashboard') setTimeout(() => this.renderCharts(), 100); },
+            navigate: function(v) {
+                document.querySelectorAll('#view-app .view-section').forEach(el => el.classList.remove('active'));
+                document.querySelectorAll('.sidebar-menu a').forEach(el => el.classList.remove('active'));
+                document.getElementById('content-' + v).classList.add('active');
+                document.getElementById('nav-' + v).classList.add('active');
+                this.toggleMenu(false);
 
-            cargarRoles: function() { fetch('?handler=Roles').then(r => r.json()).then(roles => {
-                let options = Array.isArray(roles) ? roles.map(r => `<option value="${r.idRol}">${r.nombre}</option>`).join('') : '';
-                document.getElementById('u-rol').innerHTML = options;
-                if(document.getElementById('edit-u-rol')) document.getElementById('edit-u-rol').innerHTML = options; // Carga roles también en el modal de edición
-            }); },
-
+                if(v === 'dashboard') setTimeout(() => this.renderCharts(), 100);
+                if(v === 'layout') this.cargarLayoutPatio(); // <--- LLAMADA NUEVA
+            },
+            cargarRoles: function() { fetch('?handler=Roles').then(r => r.json()).then(roles => { let options = Array.isArray(roles) ? roles.map(r => `<option value="${r.idRol}">${r.nombre}</option>`).join('') : ''; document.getElementById('u-rol').innerHTML = options; if(document.getElementById('edit-u-rol')) document.getElementById('edit-u-rol').innerHTML = options; }); },
             cargarUsuarios: function() {
                 fetch('?handler=Usuarios').then(r => r.json()).then(data => {
                     let html = '';
@@ -513,35 +789,18 @@
                 let obj = { NombreCompleto: document.getElementById('u-nombre').value, Rut: document.getElementById('u-rut').value, Email: document.getElementById('u-email').value, IdRol: parseInt(document.getElementById('u-rol').value) };
                 if(!obj.NombreCompleto || !obj.Rut) return Swal.fire('Error', 'Faltan datos', 'error');
                 fetch('?handler=CrearUsuario', { method: 'POST', headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value }, body: JSON.stringify(obj) })
-                .then(r => r.json()).then(data => { if(data.success){ bootstrap.Modal.getInstance(document.getElementById('modalUsuario')).hide(); Swal.fire('Éxito', 'Creado. Clave: 1234', 'success'); this.cargarUsuarios(); } else Swal.fire('Error', data.message, 'error'); });
+                .then(r => r.json()).then(data => { if(data.success){ bootstrap.Modal.getInstance(document.getElementById('modalUsuario')).hide(); Swal.fire('Éxito', 'Creado.', 'success'); this.cargarUsuarios(); } else Swal.fire('Error', data.message, 'error'); });
             },
-
-            // EDICIÓN DE USUARIOS
-            modalEditarUsuario: function(id, nombre, rut, email, idRol) {
-                document.getElementById('edit-u-id').value = id;
-                document.getElementById('edit-u-nombre').value = nombre;
-                document.getElementById('edit-u-rut').value = rut;
-                document.getElementById('edit-u-email').value = email;
-                document.getElementById('edit-u-rol').value = idRol;
-                new bootstrap.Modal(document.getElementById('modalEditarUsuario')).show();
-            },
+            modalEditarUsuario: function(id, nombre, rut, email, idRol) { document.getElementById('edit-u-id').value = id; document.getElementById('edit-u-nombre').value = nombre; document.getElementById('edit-u-rut').value = rut; document.getElementById('edit-u-email').value = email; document.getElementById('edit-u-rol').value = idRol; new bootstrap.Modal(document.getElementById('modalEditarUsuario')).show(); },
             guardarEdicionUsuario: function() {
-                let obj = {
-                    IdUsuario: parseInt(document.getElementById('edit-u-id').value),
-                    NombreCompleto: document.getElementById('edit-u-nombre').value,
-                    Rut: document.getElementById('edit-u-rut').value,
-                    Email: document.getElementById('edit-u-email').value,
-                    IdRol: parseInt(document.getElementById('edit-u-rol').value)
-                };
+                let obj = { IdUsuario: parseInt(document.getElementById('edit-u-id').value), NombreCompleto: document.getElementById('edit-u-nombre').value, Rut: document.getElementById('edit-u-rut').value, Email: document.getElementById('edit-u-email').value, IdRol: parseInt(document.getElementById('edit-u-rol').value) };
                 if(!obj.NombreCompleto || !obj.Rut) return Swal.fire('Error', 'Faltan datos', 'error');
                 fetch('?handler=EditarUsuario', { method: 'POST', headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value }, body: JSON.stringify(obj) })
                 .then(r => r.json()).then(data => { if(data.success){ bootstrap.Modal.getInstance(document.getElementById('modalEditarUsuario')).hide(); Swal.fire('Éxito', 'Usuario actualizado.', 'success'); this.cargarUsuarios(); } else Swal.fire('Error', 'No se pudo actualizar.', 'error'); });
             },
-
             toggleUsuario: function(id) { fetch('?handler=ToggleUsuario', { method: 'POST', headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value }, body: JSON.stringify(id) }).then(r => r.json()).then(() => this.cargarUsuarios()); },
             resetPassword: function(id) { Swal.fire({title: "¿Resetear a '1234'?", showCancelButton: true, confirmButtonText: "Sí"}).then((result) => { if (result.isConfirmed) { fetch('?handler=ResetPassword', { method: 'POST', headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value }, body: JSON.stringify(id) }).then(() => Swal.fire('Listo', '', 'success')); }}); },
 
-            // --- GRÁFICOS ---
             renderCharts: function() {
                 const domPie = document.getElementById('chart-pie'); const domBar = document.getElementById('chart-bar');
                 if(!Array.isArray(this.buses) || this.buses.length === 0) {
@@ -554,15 +813,302 @@
                 if(!this.pieChart) { domPie.innerHTML = ''; domPie.removeAttribute('_echarts_instance_'); this.pieChart = echarts.init(domPie); }
                 if(!this.barChart) { domBar.innerHTML = ''; domBar.removeAttribute('_echarts_instance_'); this.barChart = echarts.init(domBar); }
 
-                const conteo = { 'Disponible': 0, 'Carga': 0, 'No disponible': 0, 'En ruta': 0 };
+                const conteo = { 'Disponible': 0, 'Carga': 0, 'En taller': 0, 'En ruta': 0 };
                 this.buses.forEach(b => { if(conteo[b.estado] !== undefined) conteo[b.estado]++; });
-                const colors = { 'Disponible': '#28a745', 'Carga': '#ffc107', 'No disponible': '#dc3545', 'En ruta': '#0d6efd' };
+                const colors = { 'Disponible': '#28a745', 'Carga': '#ffc107', 'En taller': '#dc3545', 'En ruta': '#0d6efd' };
 
                 this.pieChart.setOption({ tooltip: { trigger: 'item' }, series: [{ type: 'pie', radius: '60%', data: Object.keys(conteo).map(k => ({ value: conteo[k], name: k, itemStyle: { color: colors[k] } })) }] });
                 this.barChart.setOption({ tooltip: {}, xAxis: { type: 'category', data: Object.keys(conteo) }, yAxis: { type: 'value' }, series: [{ type: 'bar', data: Object.keys(conteo).map(k => ({ value: conteo[k], itemStyle: { color: colors[k] } })) }] });
-            }
-        };
+            },
 
+                toggleModoEdicion: function() {
+                this.modoEdicionLayout = !this.modoEdicionLayout;
+                const btn = document.getElementById('btn-toggle-edicion');
+                const btnAdd = document.getElementById('btn-agregar-zona');
+                const canvas = document.getElementById('canvas-container');
+
+                if(this.modoEdicionLayout) {
+                    btn.classList.replace('btn-outline-dark', 'btn-dark');
+                    btn.innerHTML = '<i class="fa-solid fa-check"></i> Finalizar Edición';
+                    btnAdd.classList.remove('d-none');
+                    canvas.style.border = '3px dashed var(--redbus-red)'; // Feedback visual
+                } else {
+                    btn.classList.replace('btn-dark', 'btn-outline-dark');
+                    btn.innerHTML = '<i class="fa-solid fa-pen-ruler"></i> Activar Edición';
+                    btnAdd.classList.add('d-none');
+                    canvas.style.border = 'none';
+                }
+                this.cargarLayoutPatio(); // Recargar para aplicar clases de edición a los slots
+            },
+
+            cargarLayoutPatio: function() {
+                fetch('?handler=PatioLayout&idPatio=1').then(r => r.json()).then(zonas => {
+                    let html = '';
+                    this.patentesUsadasEnMapa = [];
+
+                    if (!zonas || zonas.length === 0) {
+                        document.getElementById('render-patio-2d').innerHTML = this.modoEdicionLayout ? '<div class="alert alert-info w-100">Patio vacío. Haga clic en "Agregar Paño" para comenzar a dibujar.</div>' : '';
+                        return;
+                    }
+
+                    zonas.forEach(z => {
+                        let isHoriz = z.orientacion === 'H';
+                        // Dimensiones dinámicas según rotación
+                        let slotW = isHoriz ? '150px' : '45px';
+                        let slotH = isHoriz ? '45px' : '150px';
+
+                        // Título y los 3 botones de la crème de la crème (solo en modo edición)
+                        let headerTitle = this.modoEdicionLayout ? `<span onclick="app.modalZona(${z.idZona}, '${z.nombreZona}', ${z.filas}, ${z.columnas}, '${z.colorHex}', '${z.orientacion}')" style="cursor:pointer;" title="Editar Zona">${z.nombreZona} <i class="fa-solid fa-pen ms-1"></i></span>` : z.nombreZona;
+                        let btnRotar = this.modoEdicionLayout ? `<button class="btn btn-sm btn-outline-light ms-1 py-0 px-1 float-end" onclick="app.rotarZonaAutomatica(${z.idZona})" title="Rotar 90°"><i class="fa-solid fa-rotate-right"></i></button>` : '';
+                        let btnInvertirV = this.modoEdicionLayout ? `<button class="btn btn-sm btn-outline-light ms-1 py-0 px-1 float-end" onclick="app.invertirZona(${z.idZona}, 'V')" title="Invertir Filas (Espejo Vertical)"><i class="fa-solid fa-arrows-up-down"></i></button>` : '';
+                        let btnInvertirH = this.modoEdicionLayout ? `<button class="btn btn-sm btn-outline-light ms-1 py-0 px-1 float-end" onclick="app.invertirZona(${z.idZona}, 'H')" title="Invertir Columnas (Espejo Horizontal)"><i class="fa-solid fa-arrows-left-right"></i></button>` : '';
+
+                        html += `<div class="zona-wrapper">
+                                    <h6 class="text-center fw-bold bg-dark text-white p-2 rounded mb-2">${headerTitle} ${btnRotar} ${btnInvertirV} ${btnInvertirH}</h6>
+                                    <div class="zona-grid" style="grid-template-columns: repeat(${z.columnas}, 1fr); background-color: ${z.colorHex};">`;
+
+                        for (let f = 1; f <= z.filas; f++) {
+                            for (let c = 1; c <= z.columnas; c++) {
+                                let slot = z.slots.find(s => s.fila === f && s.columna === c);
+                                if (slot) {
+                                    let clickAction = this.modoEdicionLayout ? `onclick="app.modalAsignarSlot(${slot.idSlot}, '${slot.patente || ''}', ${slot.idTipoVehiculo || 2})"` : `onclick="app.openModal('${slot.patente}', 'Disponible')"`;
+                                    let cursor = this.modoEdicionLayout ? 'cursor: pointer;' : '';
+                                    let bordeEdicion = this.modoEdicionLayout ? 'border-color: #333;' : '';
+
+                                    if (slot.patente) {
+                                        this.patentesUsadasEnMapa.push(slot.patente);
+                                        let tipoSanitizado = (slot.tipoBus || 'estandar').toLowerCase().replace('á', 'a').replace('é', 'e');
+                                        let imgUrl = `/img/buses/${tipoSanitizado}.png`;
+                                        let largoVehiculo = slot.largoPx || 90;
+
+                                        // La magia de la rotación visual
+                                        let rotation = isHoriz ? 'transform: rotate(-90deg);' : '';
+
+                                        html += `<div class="slot-item" style="${cursor} ${bordeEdicion} height: ${slotH}; width: ${slotW};" ${clickAction}>
+                                                    <span class="patente-flotante patente-cl">${slot.patente}</span>
+                                                    <div class="bus-wrapper" style="${rotation}">
+                                                        <div class="bus-2d" style="height: ${largoVehiculo}px; background-image: url('${imgUrl}');"></div>
+                                                    </div>
+                                                 </div>`;
+                                    } else {
+                                        html += `<div class="slot-item empty-slot" style="${cursor} ${bordeEdicion} height: ${slotH}; width: ${slotW}; background: rgba(255,255,255,0.4);" ${this.modoEdicionLayout ? clickAction : ''}>
+                                                    ${this.modoEdicionLayout ? '<i class="fa-solid fa-plus text-muted" style="opacity:0.3"></i>' : ''}
+                                                 </div>`;
+                                    }
+                                }
+                            }
+                        }
+                        html += `</div></div>`;
+                    });
+                    document.getElementById('render-patio-2d').innerHTML = html;
+                });
+            },
+
+           modalZona: function(id = 0, nombre = '', filas = 5, col = 2, color = '#a2d2ff', orientacion = 'V') {
+                document.getElementById('z-id').value = id;
+                document.getElementById('z-nombre').value = nombre;
+                document.getElementById('z-filas').value = filas;
+                document.getElementById('z-columnas').value = col;
+                document.getElementById('z-orientacion').value = orientacion;
+                document.getElementById('z-color').value = color.startsWith('#') ? color.substring(0,7) : '#a2d2ff';
+                new bootstrap.Modal(document.getElementById('modalEdicionZona')).show();
+            },
+
+            guardarZona: function() {
+                let colorBase = document.getElementById('z-color').value;
+                let colorHex = colorBase.length === 7 ? colorBase + '66' : colorBase;
+
+                let req = {
+                    IdZona: parseInt(document.getElementById('z-id').value) || 0,
+                    IdPatio: 1,
+                    NombreZona: document.getElementById('z-nombre').value.toUpperCase(),
+                    Filas: parseInt(document.getElementById('z-filas').value),
+                    Columnas: parseInt(document.getElementById('z-columnas').value),
+                    ColorHex: colorHex,
+                    Orientacion: document.getElementById('z-orientacion').value
+                };
+
+                fetch('?handler=GuardarZona', { method: 'POST', headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value }, body: JSON.stringify(req) })
+                .then(r => r.json()).then(data => {
+                    if(data.success){
+                        bootstrap.Modal.getInstance(document.getElementById('modalEdicionZona')).hide();
+                        this.cargarLayoutPatio();
+                    } else Swal.fire('Error', 'No se pudo guardar la zona', 'error');
+                });
+            },
+
+
+            rotarZonaAutomatica: function(idZona) {
+                Swal.fire({
+                    title: '¿Rotar este paño 90°?',
+                    text: "Se invertirán las filas y columnas, y las micros girarán sin perder su posición relativa.",
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonColor: '#0d6efd',
+                    confirmButtonText: 'Sí, rotar',
+                    cancelButtonText: 'Cancelar'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        fetch('?handler=RotarZona', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value },
+                            body: JSON.stringify({ Id: idZona }) // <--- ESTE ES EL ARREGLO
+                        })
+                        .then(r => r.json()).then(d => {
+                            if(d.success) { this.cargarLayoutPatio(); Swal.fire({icon: 'success', title: 'Paño Rotado', showConfirmButton: false, timer: 1000}); }
+                            else { Swal.fire('Error', 'No se pudo rotar el paño.', 'error'); }
+                        });
+                    }
+                });
+            },
+
+            invertirZona: function(idZona, eje) {
+                let textoEje = eje === 'V' ? 'las filas (arriba hacia abajo)' : 'las columnas (izquierda a derecha)';
+                Swal.fire({
+                    title: '¿Efecto Espejo?',
+                    text: `Se invertirán ${textoEje}. Las micros reacomodarán su posición automáticamente.`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#198754',
+                    confirmButtonText: 'Sí, invertir',
+                    cancelButtonText: 'Cancelar'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        fetch('?handler=InvertirZona', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value },
+                            body: JSON.stringify({ IdZona: idZona, Eje: eje })
+                        })
+                        .then(r => r.json())
+                        .then(d => {
+                            if(d.success) {
+                                this.cargarLayoutPatio();
+                                Swal.fire({icon: 'success', title: 'Zona Invertida', showConfirmButton: false, timer: 1000});
+                            } else {
+                                Swal.fire('Error', 'No se pudo invertir la zona.', 'error');
+                            }
+                        });
+                    }
+                });
+            },
+            // --- MODAL DE ASIGNACIÓN DE BUSES ---
+            modalAsignarSlot: function(idSlot, patenteActual, idTipoActual) {
+                document.getElementById('slot-id').value = idSlot;
+                document.getElementById('slot-tipo').value = idTipoActual || 2;
+
+                let $sel = $('#slot-patente');
+                $sel.empty();
+                $sel.append(new Option('--- SELECCIONE ---', '', true, true));
+
+                // Agregar la patente actual si existe (para que no desaparezca del combo al editar)
+                if(patenteActual) { $sel.append(new Option(patenteActual + ' (ACTUAL)', patenteActual, true, true)); }
+
+                // Llenar combo filtrando las patentes que YA están en el mapa
+                this.buses.forEach(b => {
+                    if(!this.patentesUsadasEnMapa.includes(b.patente)) {
+                        $sel.append(new Option(b.patente, b.patente, false, false));
+                    }
+                });
+
+                if ($sel.hasClass("select2-hidden-accessible")) { $sel.select2('destroy'); }
+                $sel.select2({ dropdownParent: $('#modalAsignarSlot') }); // Corrección z-index select2 en modales
+
+                new bootstrap.Modal(document.getElementById('modalAsignarSlot')).show();
+            },
+
+            guardarBusEnSlot: function() {
+                let patente = $('#slot-patente').val();
+                if(!patente) return Swal.fire('Error', 'Seleccione una patente', 'error');
+
+                // Quitar el texto '(ACTUAL)' si venía de la preselección
+                patente = patente.replace(' (ACTUAL)', '');
+
+                let req = {
+                    IdSlot: parseInt(document.getElementById('slot-id').value),
+                    Patente: patente, // <--- CAMBIO CLAVE: Mandamos el texto de la patente directamente
+                    IdTipoVehiculo: parseInt(document.getElementById('slot-tipo').value)
+                };
+
+                fetch('?handler=AsignarBusSlot', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value },
+                    body: JSON.stringify(req)
+                })
+                .then(r => r.json())
+                .then(d => {
+                    if(d.success) {
+                        bootstrap.Modal.getInstance(document.getElementById('modalAsignarSlot')).hide();
+                        this.cargarLayoutPatio();
+                        Swal.fire({icon: 'success', title: 'Bus Asignado', showConfirmButton: false, timer: 1000});
+                    } else {
+                        Swal.fire('Error', 'No se pudo asignar el bus.', 'error');
+                    }
+                }).catch(err => {
+                    console.error("Error asignando bus:", err);
+                    Swal.fire('Error', 'Falla de conexión con el servidor.', 'error');
+                });
+            },
+
+            quitarBusDeSlot: function() {
+                let idSlot = parseInt(document.getElementById('slot-id').value);
+                fetch('?handler=QuitarBusSlot', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value },
+                    body: JSON.stringify({ Id: idSlot }) // <--- ESTE ES EL ARREGLO
+                })
+                .then(r => r.json()).then(d => {
+                    if(d.success){ bootstrap.Modal.getInstance(document.getElementById('modalAsignarSlot')).hide(); this.cargarLayoutPatio(); }
+                });
+            },
+            initPanZoom: function() {
+                const container = document.getElementById('canvas-container');
+
+                // Empezar a arrastrar
+                container.addEventListener('mousedown', (e) => {
+                    // Evita arrastrar si haces clic en un botón, título o slot
+                    if(e.target.closest('button') || e.target.closest('.slot-item') || e.target.closest('h6')) return;
+                    e.preventDefault();
+                    this.isPanning = true;
+                    this.startX = e.clientX - this.panX;
+                    this.startY = e.clientY - this.panY;
+                });
+
+                // Mover el ratón (Arrastrar la malla)
+                container.addEventListener('mousemove', (e) => {
+                    if (!this.isPanning) return;
+                    e.preventDefault();
+                    this.panX = e.clientX - this.startX;
+                    this.panY = e.clientY - this.startY;
+                    this.applyTransform();
+                });
+
+                // Soltar ratón
+                window.addEventListener('mouseup', () => { this.isPanning = false; });
+                container.addEventListener('mouseleave', () => { this.isPanning = false; });
+
+                // Hacer Zoom con la rueda del ratón
+                container.addEventListener('wheel', (e) => {
+                    if(e.target.closest('.modal')) return; // No hacer zoom si hay un modal abierto
+                    e.preventDefault();
+                    this.zoom(e.deltaY > 0 ? -0.1 : 0.1);
+                }, { passive: false });
+            },
+
+            zoom: function(delta) {
+                // Limita el zoom entre 0.3x (muy lejos) y 2.5x (muy cerca)
+                this.zoomScale = Math.max(0.3, Math.min(this.zoomScale + delta, 2.5));
+                this.applyTransform();
+            },
+
+            resetPanZoom: function() {
+                this.zoomScale = 1; this.panX = 0; this.panY = 0;
+                this.applyTransform();
+            },
+
+            applyTransform: function() {
+                document.getElementById('render-patio-2d').style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.zoomScale})`;
+            },
+         };
         $(document).ready(function() { app.init(); });
     </script>
 }
