@@ -1,7 +1,0 @@
-C:\CL.NerdLab.Lay-out\CL.NerdLabLay-out.APP\obj\Release\net8.0\win-x64\PubTmp\Out\CL.NerdLabLay-out.APP.exe
-C:\CL.NerdLab.Lay-out\CL.NerdLabLay-out.APP\obj\Release\net8.0\win-x64\PubTmp\Out\appsettings.Development.json
-C:\CL.NerdLab.Lay-out\CL.NerdLabLay-out.APP\obj\Release\net8.0\win-x64\PubTmp\Out\appsettings.json
-C:\CL.NerdLab.Lay-out\CL.NerdLabLay-out.APP\obj\Release\net8.0\win-x64\PubTmp\Out\CL.NerdLabLay-out.APP.dll
-C:\CL.NerdLab.Lay-out\CL.NerdLabLay-out.APP\obj\Release\net8.0\win-x64\PubTmp\Out\CL.NerdLabLay-out.APP.deps.json
-C:\CL.NerdLab.Lay-out\CL.NerdLabLay-out.APP\obj\Release\net8.0\win-x64\PubTmp\Out\CL.NerdLabLay-out.APP.runtimeconfig.json
-C:\CL.NerdLab.Lay-out\CL.NerdLabLay-out.APP\obj\Release\net8.0\win-x64\PubTmp\Out\CL.NerdLabLay-out.APP.pdb
