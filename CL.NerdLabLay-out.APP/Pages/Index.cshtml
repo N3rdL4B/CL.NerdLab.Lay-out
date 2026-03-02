@@ -65,7 +65,8 @@
     </div>
 
     <ul class="nav nav-tabs mb-4" id="flotaTabs" role="tablist">
-        <li class="nav-item" role="presentation"><button class="nav-link active fw-bold text-dark" id="actual-tab" data-bs-toggle="tab" data-bs-target="#tab-actual" type="button" role="tab"><i class="fa-solid fa-bus-simple"></i> Flota Activa</button></li>
+        <li class="nav-item" role="presentation"><button class="nav-link active fw-bold text-success" id="actual-tab" data-bs-toggle="tab" data-bs-target="#tab-actual" type="button" role="tab"><i class="fa-solid fa-circle-check"></i> Disponibles</button></li>
+        <li class="nav-item" role="presentation"><button class="nav-link fw-bold text-warning" id="carga-tab" data-bs-toggle="tab" data-bs-target="#tab-carga" type="button" role="tab"><i class="fa-solid fa-bolt"></i> En Carga</button></li>
         <li class="nav-item" role="presentation"><button class="nav-link fw-bold text-primary" id="ruta-tab" data-bs-toggle="tab" data-bs-target="#tab-ruta" type="button" role="tab"><i class="fa-solid fa-route"></i> En Ruta</button></li>
         <li class="nav-item" role="presentation"><button class="nav-link fw-bold text-danger" id="taller-tab" data-bs-toggle="tab" data-bs-target="#tab-taller" type="button" role="tab"><i class="fa-solid fa-screwdriver-wrench"></i> En Taller</button></li>
 
@@ -92,6 +93,22 @@
                     <table id="tabla-flota" class="table table-hover align-middle w-100 custom-table dt-responsive nowrap" style="width: 100%;">
                         <thead class="table-light">
                             <tr><th class="text-nowrap">Bus</th><th class="text-nowrap">Patente</th><th class="text-nowrap">Recorrido</th><th class="text-nowrap">Estado Actual</th><th class="text-nowrap">Carga %</th><th class="text-nowrap">Acciones Rápidas</th></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="tab-pane fade" id="tab-carga" role="tabpanel">
+            <div class="bg-white p-3 rounded shadow-sm border-start border-warning border-4 mb-3">
+                <h5 class="text-warning fw-bold m-0"><i class="fa-solid fa-bolt"></i> Buses en Carga</h5>
+                <small class="text-muted">Listado de máquinas actualmente conectadas a los cargadores.</small>
+            </div>
+            <div class="bg-white p-3 rounded shadow-sm">
+                <div class="table-responsive">
+                    <table id="tabla-carga" class="table table-hover align-middle w-100 custom-table dt-responsive nowrap" style="width: 100%;">
+                        <thead class="table-light">
+                            <tr><th class="text-nowrap">Bus</th><th class="text-nowrap">Patente</th><th class="text-nowrap">Estado</th><th class="text-nowrap">Carga %</th><th class="text-nowrap">Acciones Rápidas</th></tr>
                         </thead>
                         <tbody></tbody>
                     </table>
@@ -448,6 +465,7 @@
             dtHistorial: null,
             dtTaller: null, // <--- NUEVA
             dtRuta: null, // <--- NUEVA VARIABLE
+            dtCarga: null,
             modoEdicionLayout: false,
             patentesUsadasEnMapa: [],
             zoomScale: 1, panX: 0, panY: 0, isPanning: false, startX: 0, startY: 0,
@@ -501,12 +519,13 @@
             },
 
             setupDataTableActual: function() {
-                // Filtramos la data en 3 grupos exactos
-                let dataActiva = this.buses.filter(b => b.estado === 'Disponible' || b.estado === 'Carga');
+                // Filtramos la data en 4 grupos exactos ahora
+                let dataActiva = this.buses.filter(b => b.estado === 'Disponible'); // <--- AHORA SOLO DISPONIBLES
+                let dataCarga  = this.buses.filter(b => b.estado === 'Carga');      // <--- NUEVO FILTRO DE CARGA
                 let dataTaller = this.buses.filter(b => b.estado === 'En taller');
-                let dataRuta = this.buses.filter(b => b.estado === 'En ruta');
+                let dataRuta   = this.buses.filter(b => b.estado === 'En ruta');
 
-                // 1. DIBUJAR TABLA FLOTA ACTIVA (Solo Disponible y Carga)
+                // 1. DIBUJAR TABLA FLOTA DISPONIBLE
                 if(this.dtActual) {
                     this.dtActual.clear();
                     this.dtActual.rows.add(dataActiva);
@@ -527,7 +546,27 @@
                     });
                 }
 
-                // 2. DIBUJAR TABLA TALLER
+                // 2. DIBUJAR NUEVA TABLA EN CARGA
+                if(this.dtCarga) {
+                    this.dtCarga.clear();
+                    this.dtCarga.rows.add(dataCarga);
+                    this.dtCarga.draw(false);
+                } else {
+                    this.dtCarga = $('#tabla-carga').DataTable({
+                        data: dataCarga,
+                        responsive: true,
+                        columns: [
+                            { data: 'estado', render: (data) => `<div class="text-center">${this.getBusIcon(data)}</div>`, width: '60px' },
+                            { data: 'patente', render: data => `<span class="patente-cl">${data}</span>` },
+                            { data: 'estado', render: data => this.renderBadge(data) },
+                            { data: 'porcentaje', render: data => data ? `<span class="badge bg-warning text-dark fs-6 shadow-sm">${data}% <i class="fa-solid fa-bolt"></i></span>` : '-' },
+                            { data: null, render: data => this.renderActionButtons(data), className: 'text-nowrap' }
+                        ],
+                        language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json' }, pageLength: 10
+                    });
+                }
+
+                // 3. DIBUJAR TABLA TALLER
                 if(this.dtTaller) {
                     this.dtTaller.clear();
                     this.dtTaller.rows.add(dataTaller);
@@ -546,7 +585,7 @@
                     });
                 }
 
-                // 3. DIBUJAR TABLA EN RUTA
+                // 4. DIBUJAR TABLA EN RUTA
                 if(this.dtRuta) {
                     this.dtRuta.clear();
                     this.dtRuta.rows.add(dataRuta);
@@ -572,15 +611,16 @@
             },
 
             renderActionButtons: function(bus) {
-                // Cambiamos gap-2 a gap-1 para que estén más juntitos
                 let btns = `<div class="d-flex gap-1 flex-wrap align-items-center">`;
+                // Rescatamos el porcentaje para inyectarlo en los botones rápidos y no perderlo
+                let pct = bus.porcentaje || '';
 
                 if (this.role === 'visualizador') {
                     if (bus.estado === 'Disponible') {
                         btns += `<button class="btn btn-sm btn-primary shadow-sm" title="A Ruta" onclick="app.openModal('${bus.patente}', 'En ruta')"><i class="fa-solid fa-route"></i></button> `;
                         btns += `<button class="btn btn-sm btn-danger shadow-sm" title="A Taller" onclick="app.directUpdate('${bus.patente}', 'En taller')"><i class="fa-solid fa-screwdriver-wrench"></i></button>`;
                     } else if (bus.estado === 'En taller' || bus.estado === 'En ruta') {
-                        btns += `<button class="btn btn-sm btn-success shadow-sm" title="A Disponible" onclick="app.directUpdate('${bus.patente}', 'Disponible')"><i class="fa-solid fa-check"></i></button>`;
+                        btns += `<button class="btn btn-sm btn-success shadow-sm" title="A Disponible" onclick="app.directUpdate('${bus.patente}', 'Disponible', '${pct}')"><i class="fa-solid fa-check"></i></button>`;
                     } else {
                         btns += `<span class="text-muted small fst-italic">En Carga</span>`;
                     }
@@ -592,22 +632,20 @@
                         btns += `<button class="btn btn-sm btn-danger shadow-sm" title="A Taller" onclick="app.directUpdate('${bus.patente}', 'En taller')"><i class="fa-solid fa-screwdriver-wrench"></i></button>`;
                     } else if (bus.estado === 'Carga') {
                         btns += `<button class="btn btn-sm btn-outline-warning text-dark fw-bold" title="Actualizar Nivel Carga" onclick="app.openModal('${bus.patente}', 'Carga')"><i class="fa-solid fa-battery-half"></i></button>`;
-                        btns += `<button class="btn btn-sm btn-success shadow-sm" title="A Disponible" onclick="app.directUpdate('${bus.patente}', 'Disponible')"><i class="fa-solid fa-check"></i></button>`;
+                        btns += `<button class="btn btn-sm btn-success shadow-sm" title="A Disponible" onclick="app.directUpdate('${bus.patente}', 'Disponible', '${pct}')"><i class="fa-solid fa-check"></i></button>`;
                         btns += `<button class="btn btn-sm btn-danger shadow-sm" title="A Taller" onclick="app.directUpdate('${bus.patente}', 'En taller')"><i class="fa-solid fa-screwdriver-wrench"></i></button>`;
                     } else if (bus.estado === 'En taller' || bus.estado === 'En ruta') {
-                        btns += `<button class="btn btn-sm btn-success shadow-sm" title="A Disponible" onclick="app.directUpdate('${bus.patente}', 'Disponible')"><i class="fa-solid fa-check"></i></button>`;
+                        btns += `<button class="btn btn-sm btn-success shadow-sm" title="A Disponible" onclick="app.directUpdate('${bus.patente}', 'Disponible', '${pct}')"><i class="fa-solid fa-check"></i></button>`;
                     }
                 }
                 else if (this.role === 'admin') {
                     btns += `<button class="btn btn-sm btn-dark shadow-sm" title="Forzar Estado" onclick="app.openModal('${bus.patente}', '${bus.estado}')"><i class="fa-solid fa-gear"></i></button>`;
                 }
 
-                // NUEVO BOTÓN: ASIGNAR RECORRIDO INDEPENDIENTE
                 if (bus.estado !== 'En taller') {
                     btns += `<button class="btn btn-sm btn-outline-primary text-primary border-primary shadow-sm" title="Pre-asignar o cambiar recorrido" onclick="app.openModalRecorrido('${bus.patente}', '${bus.recorrido || ''}')"><i class="fa-solid fa-map-location-dot"></i></button>`;
                 }
 
-                // LE QUITÉ EL "ms-auto" A ESTE BOTÓN PARA QUE NO SE ARRANQUE A LA DERECHA
                 btns += `<button class="btn btn-sm btn-info text-white shadow-sm" title="Ver Historial de Carga" onclick="app.verHistorialBus('${bus.patente}')"><i class="fa-solid fa-clock-rotate-left"></i></button></div>`;
 
                 return btns;
@@ -685,18 +723,23 @@
 
             checkModalInputs: function() {
                 const e = document.getElementById('modal-select-estado').value;
+
+                // MAGIA AQUÍ: Cambiamos la condición para que sea estrictamente 'Carga'
                 document.getElementById('div-carga-porcentaje').style.display = (e === 'Carga') ? 'block' : 'none';
+
                 document.getElementById('div-recorrido').style.display = (e === 'En ruta') ? 'block' : 'none';
             },
 
             saveEstado: function() {
                 const patente = document.getElementById('modal-patente').innerText;
                 const estado = document.getElementById('modal-select-estado').value;
+
+                // AQUÍ TAMBIÉN: Solo leemos el input numérico si el estado es 'Carga'
                 let porcentaje = (estado === 'Carga') ? document.getElementById('modal-input-carga').value : null;
                 let recorrido = (estado === 'En ruta') ? document.getElementById('modal-input-recorrido').value : null;
 
+                // Validación de seguridad
                 if (estado === 'Carga' && !porcentaje) return Swal.fire('Error', 'Ingrese porcentaje', 'error');
-                if (estado === 'En ruta' && !recorrido) return Swal.fire('Error', 'Ingrese Número de Recorrido', 'error');
 
                 let m = bootstrap.Modal.getInstance(document.getElementById('modalEstado'));
                 if(m) m.hide();

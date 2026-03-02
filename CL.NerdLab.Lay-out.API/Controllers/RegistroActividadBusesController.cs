@@ -77,6 +77,7 @@ namespace CL.NerdLab.Lay_out.API.Controllers
                 using var transaction = await _context.Database.BeginTransactionAsync();
                 try
                 {
+                    // 1. LÓGICA DE CREACIÓN AUTOMÁTICA
                     var bus = await _context.Flota.FirstOrDefaultAsync(f => f.Patente == request.Patente);
                     if (bus == null)
                     {
@@ -87,18 +88,37 @@ namespace CL.NerdLab.Lay_out.API.Controllers
                         await _context.SaveChangesAsync();
                     }
 
-                    var actividad = await _context.RegistroActividadBuses.FirstOrDefaultAsync(r => r.IdPatente == bus.IdPatente);
+                    // 2. LÓGICA DE DÍA NUEVO VS ACTUALIZACIÓN
+                    DateTime horaChile = DateTime.UtcNow.AddHours(-3);
+                    DateTime inicioHoyUtc = horaChile.Date.AddHours(3);
+
+                    var actividad = await _context.RegistroActividadBuses
+                        .Where(r => r.IdPatente == bus.IdPatente && r.FechaReg >= inicioHoyUtc)
+                        .OrderByDescending(r => r.FechaReg)
+                        .FirstOrDefaultAsync();
+
                     if (actividad == null)
                     {
-                        actividad = new RegistroActividadBuses { IdPatente = bus.IdPatente };
+                        actividad = new RegistroActividadBuses
+                        {
+                            IdPatente = bus.IdPatente,
+                            EstadoActividadBus = request.Estado,
+                            PorcentajeCarga = request.Porcentaje,
+                            NumeroRecorrido = request.NumeroRecorrido,
+                            IdUsuario = usuario.IdUsuario,
+                            FechaReg = DateTime.UtcNow
+                        };
                         _context.RegistroActividadBuses.Add(actividad);
                     }
+                    else
+                    {
+                        actividad.EstadoActividadBus = request.Estado;
+                        actividad.PorcentajeCarga = request.Porcentaje;
+                        if (request.NumeroRecorrido != null) { actividad.NumeroRecorrido = request.NumeroRecorrido; }
+                        actividad.IdUsuario = usuario.IdUsuario;
+                        actividad.FechaReg = DateTime.UtcNow;
+                    }
 
-                    actividad.EstadoActividadBus = request.Estado;
-                    actividad.PorcentajeCarga = request.Porcentaje;
-                    if (request.NumeroRecorrido != null) { actividad.NumeroRecorrido = request.NumeroRecorrido; }
-                    actividad.IdUsuario = usuario.IdUsuario;
-                    actividad.FechaReg = DateTime.UtcNow;
                     await _context.SaveChangesAsync();
 
                     string accionLog = $"Cambió patente {bus.Patente} a estado {request.Estado}";
@@ -106,6 +126,7 @@ namespace CL.NerdLab.Lay_out.API.Controllers
                         INSERT INTO LogsActividadUsuarios (IdUsuario, Accion, FechaReg) 
                         VALUES ({usuario.IdUsuario}, {accionLog}, {DateTime.UtcNow})");
 
+                    // Solo registrar historial si es Carga y trae porcentaje
                     if (request.Estado == "Carga" && request.Porcentaje.HasValue)
                     {
                         await _context.Database.ExecuteSqlInterpolatedAsync($@"
@@ -138,27 +159,68 @@ namespace CL.NerdLab.Lay_out.API.Controllers
 
                 request.Patente = request.Patente?.ToUpper().Trim() ?? "";
 
-                var bus = await _context.Flota.FirstOrDefaultAsync(f => f.Patente == request.Patente);
-                if (bus == null) return Ok(new { success = false, message = "El bus no existe." });
-
-                var actividad = await _context.RegistroActividadBuses.FirstOrDefaultAsync(r => r.IdPatente == bus.IdPatente);
-                if (actividad == null)
+                using var transaction = await _context.Database.BeginTransactionAsync();
+                try
                 {
-                    actividad = new RegistroActividadBuses { IdPatente = bus.IdPatente, EstadoActividadBus = "Disponible" };
-                    _context.RegistroActividadBuses.Add(actividad);
+                    // 1. LÓGICA DE CREACIÓN AUTOMÁTICA DE FLOTA (¡El bus se crea si no existe!)
+                    var bus = await _context.Flota.FirstOrDefaultAsync(f => f.Patente == request.Patente);
+                    if (bus == null)
+                    {
+                        var patio = await _context.Patios.FirstOrDefaultAsync() ?? new Patios { Nombre = "Terminal Central" };
+                        if (patio.IdPatio == 0) { _context.Patios.Add(patio); await _context.SaveChangesAsync(); }
+
+                        // Lo registramos como activo y lo asignamos al patio principal
+                        bus = new Flota { Patente = request.Patente, IdPatio = patio.IdPatio, Activo = true };
+                        _context.Flota.Add(bus);
+                        await _context.SaveChangesAsync();
+                    }
+
+                    // 2. LÓGICA DE DÍA NUEVO VS ACTUALIZACIÓN
+                    DateTime horaChile = DateTime.UtcNow.AddHours(-3);
+                    DateTime inicioHoyUtc = horaChile.Date.AddHours(3);
+
+                    var actividad = await _context.RegistroActividadBuses
+                        .Where(r => r.IdPatente == bus.IdPatente && r.FechaReg >= inicioHoyUtc)
+                        .OrderByDescending(r => r.FechaReg)
+                        .FirstOrDefaultAsync();
+
+                    if (actividad == null)
+                    {
+                        // Insertamos nuevo registro si no tiene nada hoy
+                        actividad = new RegistroActividadBuses
+                        {
+                            IdPatente = bus.IdPatente,
+                            EstadoActividadBus = "Disponible", // Asumimos Disponible si la primera acción del día es asignarle ruta
+                            NumeroRecorrido = request.NumeroRecorrido,
+                            IdUsuario = usuario.IdUsuario,
+                            FechaReg = DateTime.UtcNow
+                        };
+                        _context.RegistroActividadBuses.Add(actividad);
+                    }
+                    else
+                    {
+                        // Actualizamos si ya tiene actividad hoy
+                        actividad.NumeroRecorrido = request.NumeroRecorrido;
+                        actividad.IdUsuario = usuario.IdUsuario;
+                        actividad.FechaReg = DateTime.UtcNow;
+                    }
+
+                    await _context.SaveChangesAsync();
+
+                    // 3. REGISTRO EN EL LOG DE AUDITORÍA
+                    string accionLog = $"Asignó recorrido '{request.NumeroRecorrido}' a patente {bus.Patente}";
+                    await _context.Database.ExecuteSqlInterpolatedAsync($@"
+                INSERT INTO LogsActividadUsuarios (IdUsuario, Accion, FechaReg) 
+                VALUES ({usuario.IdUsuario}, {accionLog}, {DateTime.UtcNow})");
+
+                    await transaction.CommitAsync();
+                    return Ok(new { success = true });
                 }
-
-                actividad.NumeroRecorrido = request.NumeroRecorrido;
-                actividad.IdUsuario = usuario.IdUsuario;
-                actividad.FechaReg = DateTime.UtcNow;
-                await _context.SaveChangesAsync();
-
-                string accionLog = $"Asignó recorrido '{request.NumeroRecorrido}' a patente {bus.Patente}";
-                await _context.Database.ExecuteSqlInterpolatedAsync($@"
-                    INSERT INTO LogsActividadUsuarios (IdUsuario, Accion, FechaReg) 
-                    VALUES ({usuario.IdUsuario}, {accionLog}, {DateTime.UtcNow})");
-
-                return Ok(new { success = true });
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    return Ok(new { success = false, message = "Error BD", details = ex.Message });
+                }
             }
             catch (Exception ex)
             {
